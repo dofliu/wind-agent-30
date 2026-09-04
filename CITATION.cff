@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "wind-agent-30: An Industrial AI Agent for Wind Turbine O&M"
+abstract: >-
+  An industrial AI agent that connects a large language model to wind turbine
+  equipment via MCP and Modbus/OPC UA, and grounds its fault-diagnosis answers
+  in maintenance SOPs through hybrid retrieval with quantitative evaluation.
+  Designed under a read-only-by-default safety principle with
+  human-in-the-loop authority.
+type: software
+authors:
+  - family-names: "Liu"
+    given-names: "Jui-Hung"        # TODO: 確認英文姓名拼寫
+    alias: "dofliu"
+    affiliation: >-
+      Department of Intelligent Automation Engineering,
+      National Chin-Yi University of Technology, Taiwan
+    # orcid: "https://orcid.org/0000-0000-0000-0000"   # TODO: 填入
+repository-code: "https://github.com/dofliu/wind-agent-30"   # TODO: 確認帳號
+license: Apache-2.0
+date-released: 2026-09-13
+keywords:
+  - industrial AI agent
+  - wind turbine
+  - operation and maintenance
+  - Model Context Protocol
+  - Modbus
+  - OPC UA
+  - retrieval-augmented generation
+  - fault diagnosis

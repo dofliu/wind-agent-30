@@ -1,0 +1,18 @@
+# ---- 工業通訊 ----
+pymodbus==3.6.9          # 版本鎖定，勿升級，見 docs/setup.md
+asyncua>=1.1.0           # OPC UA（Day 10）
+
+# ---- MCP ----
+fastmcp>=0.2.0
+
+# ---- 檢索 ----
+rank-bm25>=0.2.2
+sentence-transformers>=2.7.0
+
+# ---- 工具 ----
+pyyaml>=6.0
+python-dotenv>=1.0.0
+
+# ---- 評測 ----
+numpy>=1.26.0
+pandas>=2.2.0

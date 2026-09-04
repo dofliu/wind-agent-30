@@ -1,0 +1,20 @@
+wind-agent-30
+Copyright 2026 Dof Liu (劉瑞弘)
+
+本專案之研發部分獲中華民國國家科學及技術委員會補助，
+計畫編號：NSTC 114-2637-E-167-008
+
+This work was supported in part by the National Science and Technology Council
+(NSTC), Taiwan, under Grant NSTC 114-2637-E-167-008.
+
+執行單位：國立勤益科技大學 智慧自動化工程系 DOF Lab
+Department of Intelligent Automation Engineering,
+National Chin-Yi University of Technology, Taiwan
+
+---
+
+本專案程式碼依 Apache License 2.0 授權。
+文件、圖表與資料集之授權另行標示於各目錄。
+
+本專案所使用之風機營運資料均為自建模擬資料，
+不含任何營運方之實際運轉資料或廠商專有技術文件。

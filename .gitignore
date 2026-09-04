@@ -1,0 +1,46 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.python-version
+
+# ---- 環境變數與金鑰（絕對不可進版控）----
+.env
+.env.*
+*.key
+*.pem
+credentials.json
+claude_desktop_config.json
+
+# ---- 未公開資料（轉 public 前的最後一道防線）----
+sop_raw/
+manuals/
+vendor_docs/
+private_data/
+*.pdf
+*.docx
+*.xlsx
+
+# ---- 模型與索引產物 ----
+*.faiss
+*.index
+*.bin
+embeddings/
+.cache/
+
+# ---- 實驗中間產物 ----
+runs/
+logs/
+*.log
+tmp/
+
+# ---- 編輯器 / OS ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.zip
