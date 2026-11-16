@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>乘風騎行 · 風力發電五千年</title>
+  <meta name="description" content="一隻黑面琵鷺騎著腳踏車，穿過 20 幅畫框、走完風力利用的五千年 —— 100% 程式即時生成的動畫時間軸。" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700;900&family=Noto+Sans+TC:wght@400;500;700&family=LXGW+WenKai+TC:wght@400;700&family=JetBrains+Mono:wght@400;700&family=UnifrakturMaguntia&family=IM+Fell+English:ital@0;1&family=Cormorant+Garamond:wght@500;700&family=Playfair+Display:wght@700;900&family=Bebas+Neue&family=Press+Start+2P&family=VT323&display=block" />
+  <link rel="stylesheet" href="./public/style.css" />
+</head>
+<body class="player">
+  <main id="player">
+    <div id="stage-wrap" title="點一下播放／暫停（空白鍵）">
+      <div id="canvas-host"></div>
+    </div>
+    <div id="control-bar">
+      <button id="btn-play" type="button">播放 ▶</button>
+      <span id="time-readout">00:00.0 / 02:58.0</span>
+      <input id="scrubber" type="range" min="0" max="178" step="0.01" value="0" aria-label="播放進度" />
+      <select id="scene-jump" aria-label="跳到某一站"></select>
+      <label class="teach"><input id="teach-mode" type="checkbox" /> 每站暫停</label>
+      <button id="btn-mute" type="button" title="靜音 (M)">🔊 聲音</button>
+      <input id="volume-slider" type="range" min="0" max="1" step="0.01" value="0.9" aria-label="音量" />
+      <span id="audio-status" class="is-loading">配樂合成中…</span>
+      <button id="btn-fullscreen" type="button" title="全螢幕 (F)">⛶</button>
+    </div>
+    <div id="era-badge">序章 · 乘風騎行</div>
+    <section id="info-card" aria-live="polite"></section>
+    <footer><a href="./gallery.html">二十站畫廊與史料出處 →</a></footer>
+  </main>
+  <script type="module" src="./src/player.js"></script>
+</body>
+</html>
