@@ -466,7 +466,7 @@ export async function renderSoundtrack(sampleRate = 48000, opts = {}) {
 
     let c0 = clock();
     const hc = typeof navigator !== 'undefined' && navigator.hardwareConcurrency ? navigator.hardwareConcurrency : 2;
-    pool = opts.workers === false ? null : await SynthPool.create(clamp(hc - 1, 1, 3));
+    pool = opts.workers === false ? null : await SynthPool.create(clamp(hc - 2, 1, 3));
     const workerCount = pool ? pool.workers.length : 0;
     const workerKind = pool ? pool.kind : 'main-thread';
     phase.pool = clock() - c0;
