@@ -1,5 +1,5 @@
 // src/scenes/betz.js
-// #11 · 1919–1931 · 空氣動力學登場 — The age of aerodynamics.
+// #11 · 1920–1931 · 空氣動力學登場 — The age of aerodynamics.
 //
 // Medium: an engineering BLUEPRINT (cyanotype): Prussian-blue paper with mottled
 // exposure, fold creases and a faint drafting grid; the line work is the white
@@ -14,9 +14,10 @@
 //          velocity is v1 far upstream, v = 2/3 v1 at the disk and v2 = 1/3 v1 in the
 //          far wake, so the areas are A1 = 2/3 A and A2 = 2 A. Animated tracer
 //          particles slow down (and bunch up) as they pass the disk.
-//          C_P = 4a(1-a)^2, maximum 16/27 ≈ 59.3 % (A. Betz, 1919/1920).
+//          C_P = 4a(1-a)^2, maximum 16/27 ≈ 59.3 % (A. Betz 1920; N. Joukowsky the same
+//          year — the Betz–Joukowsky limit).
 //  FIG. 2  G. J. M. Darrieus' vertical-axis "egg-beater" turbine (U.S. Pat. 1,835,018,
-//          1931): two curved troposkein blades fixed top and bottom to a vertical
+//          1931; French filing 1925): two curved (bowed) blades fixed top and bottom to a vertical
 //          shaft, patent-style elevation, rotating (hidden blade dashed).
 //  FIG. 3  A C_P gauge whose needle is stopped at the 59.3 % red line.
 //
@@ -240,7 +241,7 @@ function paintFig1(g) {
   g.strokeStyle = INK;
   g.fillStyle = INK;
   ttext(g, 'FIG. 1   ACTUATOR DISK — AXIAL MOMENTUM THEORY', 64, 80, 15, { weight: 700 });
-  ttext(g, 'A. BETZ, GÖTTINGEN 1919–1920 · IDEAL ROTOR, INCOMPRESSIBLE FLOW', 64, 98, 10.5, { color: INK2 });
+  ttext(g, 'BETZ (GÖTTINGEN) / JOUKOWSKY 1920 · IDEAL ROTOR, INCOMPRESSIBLE FLOW', 64, 98, 10.5, { color: INK2 });
   // centre line
   g.lineWidth = 0.9;
   g.strokeStyle = INK2;
@@ -357,7 +358,7 @@ function paintFig1(g) {
 // FIG. 2 — Darrieus elevation (static parts)
 // -----------------------------------------------------------------------------
 function darR(z) {
-  // troposkein-like blade radius, z = 0 bottom fixing .. 1 top fixing
+  // bowed ('egg-beater') blade radius, z = 0 bottom fixing .. 1 top fixing
   return DAR.R * Math.pow(Math.sin(Math.PI * clamp(z, 0, 1)), 0.82);
 }
 function darY(z) {
@@ -367,8 +368,8 @@ function paintFig2(g) {
   const { x, yTop, yBot, R, base } = DAR;
   g.strokeStyle = INK;
   g.fillStyle = INK;
-  ttext(g, 'FIG. 2   G. J. M. DARRIEUS — TURBINE', 600, 80, 15, { weight: 700 });
-  ttext(g, 'ELEVATION · VERTICAL AXIS · 2 CURVED BLADES', 600, 98, 10.5, { color: INK2 });
+  ttext(g, 'FIG. 2  G. J. M. DARRIEUS — TURBINE', 592, 80, 15, { weight: 700 });
+  ttext(g, 'ELEVATION · VERTICAL AXIS · 2 CURVED BLADES', 592, 98, 10.5, { color: INK2 });
   // phantom envelope of the blades (alternate positions)
   g.strokeStyle = INK2;
   g.lineWidth = 0.8;
@@ -448,7 +449,7 @@ function paintFig2(g) {
   leader(x - 13, DAR.hubTop - 5, x - 54, DAR.hubTop - 20, 'TOP BEARING', 'right');
   leader(x + darR(0.86), darY(0.86), x + 104, 182, '', 'left');
   ttext(g, 'BLADE', 946, 178, 9.5, { align: 'right' });
-  ttext(g, '(TROPOSKEIN)', 946, 192, 9, { align: 'right', color: INK2 });
+  ttext(g, '(CURVED)', 946, 192, 9, { align: 'right', color: INK2 });
   leader(x + 6, darY(0.08), x + 76, 608, '', 'left');
   ttext(g, 'VERTICAL', 946, 604, 9.5, { align: 'right' });
   ttext(g, 'SHAFT', 946, 617, 9.5, { align: 'right' });
@@ -602,7 +603,7 @@ function paintTitleBlock(g) {
   // row 2 — 貝茲極限
   ttext(g, '貝茲極限 16/27', x0 + 12, rows[0] + 34, 26, { font: SANS, weight: 900, spacing: 1 });
   ttext(g, 'C_{P,MAX} ≈ 59.3 %', x0 + 208, rows[0] + 22, 13, { weight: 700 });
-  ttext(g, 'A. BETZ 1919–1920', x0 + 208, rows[0] + 40, 10, { color: INK2 });
+  ttext(g, 'BETZ / JOUKOWSKY 1920', x0 + 208, rows[0] + 40, 10, { color: INK2 });
   // row 3 — drawing data
   ttext(g, 'VERTICAL-AXIS WIND TURBINE', x0 + 12, rows[1] + 18, 10, { color: INK2 });
   ttext(g, '垂直軸「打蛋器」風機', x0 + 12, rows[1] + 36, 13, { font: SANS, weight: 700 });
@@ -674,8 +675,11 @@ function paintGround(g) {
   g.stroke();
   g.restore();
   ttext(g, 'GROUND LINE', 200, ROAD_Y - 6, 9, { color: INK2 });
-  ttext(g, 'MATCH LINE — SHEET 10', BORDER.i + 4, ROAD_Y - 6, 8.5, { color: INK2 });
-  ttext(g, 'MATCH LINE — SHEET 12', S - BORDER.i - 4, ROAD_Y - 6, 8.5, { align: 'right', color: INK2 });
+  // two-line labels, so the right one clears the Darrieus generator box (x 838–884)
+  ttext(g, 'MATCH LINE', BORDER.i + 4, ROAD_Y - 18, 8.5, { color: INK2 });
+  ttext(g, 'SHEET 10', BORDER.i + 4, ROAD_Y - 6, 8.5, { color: INK2 });
+  ttext(g, 'MATCH LINE', S - BORDER.i - 4, ROAD_Y - 18, 8.5, { align: 'right', color: INK2 });
+  ttext(g, 'SHEET 12', S - BORDER.i - 4, ROAD_Y - 6, 8.5, { align: 'right', color: INK2 });
 }
 
 // red-pencil mark-up on the print (crisp: drawn after printing)
@@ -1250,14 +1254,14 @@ function paintStampSprite(g, rng, w, h, kit) {
   g.globalAlpha = 1;
   g.globalCompositeOperation = 'source-over';
 }
-function drawStamp(ctx, T, sprite) {
+function drawStamp(ctx, T, sprite, at = STAMP) {
   if (T < STAMP.t) return;
   const dt = T - STAMP.t;
   const down = sstep(0, 0.08, dt);
   const scale = lerp(1.7, 1, down) + 0.04 * Math.sin(clamp((dt - 0.08) / 0.18, 0, 1) * Math.PI);
   const alpha = lerp(0.25, 0.9, down);
   ctx.save();
-  ctx.translate(STAMP.x, STAMP.y);
+  ctx.translate(at.x, at.y);
   ctx.rotate(STAMP.rot);
   // impact ticks
   if (dt > 0.06 && dt < 0.4) {
@@ -1329,6 +1333,8 @@ export function render(kit, slot, scene, params) {
   drawDarrieus(ctx, T);
   drawNeedle(ctx, T);
   if (kit.riderVisible(params)) drawBlueprintRider(ctx, kit, params, scene, T);
-  drawStamp(ctx, T, stamp);
+  // thumbnail (rider forced to x = 500): keep the stamp off the rider, in the empty
+  // left-middle of the sheet
+  drawStamp(ctx, T, stamp, thumb ? { x: 205, y: 606 } : STAMP);
   ctx.restore();
 }

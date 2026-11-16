@@ -1083,14 +1083,12 @@ function getLagoon(kit) {
   return kit.bake('tw_lagoon_v1', S, S - LAGOON_Y + 2, (g, rng, w, h) => {
     const OY = LAGOON_Y - 2;
     g.translate(0, -OY);
-    // shallow lagoon water with stepped bands
-    const bands = ['#2a8fa0', '#2380932', '#1d7387'];
+    // shallow lagoon water
     const gr = g.createLinearGradient(0, LAGOON_Y, 0, HEM_Y);
     gr.addColorStop(0, '#45a7b4');
     gr.addColorStop(1, '#1b6c80');
     g.fillStyle = gr;
     g.fillRect(0, LAGOON_Y, S, HEM_Y - LAGOON_Y + 10);
-    void bands;
     // mudflats (warm ochre islands)
     const flats = [
       [180, 770, 120, 14],
@@ -1646,7 +1644,9 @@ function drawSkein(g, T) {
 // ---------------------------------------------------------------------------
 const RIDER_STYLE = {
   plumage: '#fffdf6',
-  plumageShade: '#f6c1cf',
+  // cool stepped shade (退暈) on WHITE plumage — a pink shade made the rider read as a
+  // roseate spoonbill / flamingo instead of a black-faced spoonbill
+  plumageShade: '#d9e3f0',
   mask: '#14131f',
   bill: '#14131f',
   eyeRing: '#f4d35e',

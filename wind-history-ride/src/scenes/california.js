@@ -13,7 +13,9 @@
 // Story (4 bars): bar 1–2 the rider glides past the hero turbine silhouetted against the
 // sun; bar 3 downbeat the tape loses tracking — the picture tears sideways for half a beat —
 // and when it snaps back the rider's mini rotor has become a neon star; the OSD says
-// TRACKING; bar 4 rolls on as if nothing happened.
+// TRACKING while the meter refills; once tracking is restored (bar 4) the star is the
+// three-bladed mini rotor again, so the rider leaves the panel on-model.
+// Setting: Altamont is treeless grazing land — wooden pole line and cattle, no palms.
 
 const P = 1000;
 const ROAD_Y = 700;
@@ -37,6 +39,7 @@ const C = {
 const GLITCH_T0 = 4.0; // bar 3, beat 1
 const GLITCH_T1 = 4.25; // half a beat
 const STAR_T = 4.18;
+const STAR_END = 5.8; // tracking restored (the TRACKING meter fades out at 5.6–5.8)
 
 let K = null;
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -654,74 +657,136 @@ function paintRoad(g) {
   glowStroke(g, d, C.yellow, 1.6, 0.8);
 }
 
-/** Two San Gorgonio palms on the left, as black cut-outs with a neon rim. */
-function paintPalms(g) {
-  const palm = (x, base, h, lean, s) => {
-    const top = { x: x + lean, y: base - h };
-    g.save();
-    // trunk
-    g.strokeStyle = '#140a1f';
-    g.lineCap = 'round';
-    g.lineWidth = 7 * s;
+/**
+ * Altamont is treeless grazing land (no palms — those belong to Palm Springs): a wooden
+ * pole line (the farm's collector line) runs from the left foreground up into the hills,
+ * and a few cattle graze on the near slope between the towers. Black cut-outs, neon rim.
+ */
+function paintAltamontDetails(g) {
+  const CUT = '#140a1f';
+  const poles = [
+    { x: 58, base: 652, h: 268, arm: 34 },
+    { x: 118, base: 616, h: 150, arm: 20 },
+    { x: 152, base: 597, h: 94, arm: 13 },
+  ];
+  const tops = poles.map((p) => ({ x: p.x, y: p.base - p.h + 10 }));
+  g.save();
+  g.lineCap = 'round';
+  // wires: three conductors per span, sagging; the first span leaves the frame on the left
+  const span = (a, b, dy, lw) => {
     g.beginPath();
-    g.moveTo(x, base);
-    g.quadraticCurveTo(x + lean * 0.1, base - h * 0.55, top.x, top.y);
+    g.moveTo(a.x, a.y + dy);
+    g.quadraticCurveTo((a.x + b.x) / 2, Math.max(a.y, b.y) + dy + Math.abs(b.x - a.x) * 0.12, b.x, b.y + dy);
     g.stroke();
-    g.strokeStyle = 'rgba(255,79,154,0.7)';
+    void lw;
+  };
+  for (const [k, off] of [[0, -1], [1, 0], [2, 1]]) {
+    const pa = poles.map((p, i) => ({ x: p.x + off * p.arm * 0.82, y: tops[i].y - 3 }));
+    g.strokeStyle = 'rgba(20,10,31,0.95)';
     g.lineWidth = 1.2;
+    span({ x: -30 + off * 20, y: pa[0].y - 14 }, pa[0], 0, 1);
+    span(pa[0], pa[1], 0, 1);
+    span(pa[1], pa[2], 0, 1);
+    g.strokeStyle = 'rgba(255,143,197,0.45)';
+    g.lineWidth = 0.7;
+    span({ x: -30 + off * 20, y: pa[0].y - 14 }, pa[0], -1, 1);
+    span(pa[0], pa[1], -1, 1);
+    void k;
+  }
+  // poles: tapered wooden posts with a crossarm and three insulators
+  poles.forEach((p, i) => {
+    const s = p.h / 268;
+    const top = p.base - p.h;
+    g.fillStyle = CUT;
     g.beginPath();
-    g.moveTo(x + 3.5 * s, base);
-    g.quadraticCurveTo(x + lean * 0.1 + 3.5 * s, base - h * 0.55, top.x + 3 * s, top.y);
+    g.moveTo(p.x - 5 * s - 1, p.base);
+    g.lineTo(p.x - 3 * s - 0.5, top);
+    g.lineTo(p.x + 3 * s + 0.5, top);
+    g.lineTo(p.x + 5 * s + 1, p.base);
+    g.closePath();
+    g.fill();
+    g.fillRect(p.x - p.arm, top + 10 - 2.5 * s - 1, p.arm * 2, 5 * s + 2);
+    // diagonal arm braces
+    g.strokeStyle = CUT;
+    g.lineWidth = 1.6 * s + 0.6;
+    g.beginPath();
+    g.moveTo(p.x - p.arm * 0.55, top + 12);
+    g.lineTo(p.x, top + 10 + 26 * s);
+    g.lineTo(p.x + p.arm * 0.55, top + 12);
     g.stroke();
-    // trunk rings
-    g.strokeStyle = 'rgba(255,143,197,0.35)';
+    for (const off of [-1, 0, 1]) {
+      const ix = p.x + off * p.arm * 0.82;
+      g.fillRect(ix - 2 * s - 0.5, top + 2, 4 * s + 1, 9 * s + 1);
+    }
+    // neon rim light on the sun side
+    g.strokeStyle = 'rgba(37,208,255,0.7)';
     g.lineWidth = 1;
-    for (let k = 1; k < 14; k++) {
-      const u = k / 14;
-      const px = lerp(x, top.x, u * u) + lean * 0.1 * 4 * u * (1 - u);
-      const py = lerp(base, top.y, u);
-      g.beginPath();
-      g.moveTo(px - 3 * s, py);
-      g.lineTo(px + 3 * s, py + 1);
-      g.stroke();
+    g.beginPath();
+    g.moveTo(p.x + 5 * s + 1, p.base);
+    g.lineTo(p.x + 3 * s + 0.5, top);
+    g.stroke();
+    g.strokeStyle = 'rgba(255,79,154,0.6)';
+    g.beginPath();
+    g.moveTo(p.x - p.arm, top + 10 - 2.5 * s - 1);
+    g.lineTo(p.x + p.arm, top + 10 - 2.5 * s - 1);
+    g.stroke();
+    void i;
+  });
+  // grazing cattle on the near slope (facing left; head down = grazing)
+  const cow = (x, y, sc, graze) => {
+    g.save();
+    g.translate(x, y);
+    g.scale(sc, sc);
+    g.fillStyle = CUT;
+    g.beginPath();
+    // body
+    g.moveTo(-9, -13);
+    g.quadraticCurveTo(0, -15, 9, -13);
+    g.quadraticCurveTo(12, -12, 11, -7);
+    g.lineTo(10, -5);
+    g.lineTo(-9, -5);
+    g.quadraticCurveTo(-11, -9, -9, -13);
+    g.closePath();
+    g.fill();
+    // neck + head
+    g.beginPath();
+    if (graze) {
+      g.moveTo(-8, -12);
+      g.lineTo(-14, -6);
+      g.lineTo(-16, -1.5);
+      g.lineTo(-12, -1);
+      g.lineTo(-8, -6);
+    } else {
+      g.moveTo(-8, -12);
+      g.lineTo(-13, -15);
+      g.lineTo(-18, -13);
+      g.lineTo(-17, -10);
+      g.lineTo(-9, -7);
     }
-    // fronds
-    const fronds = [-2.9, -2.4, -1.9, -1.35, -0.9, -0.4, 0.1, 0.5];
-    for (const a0 of fronds) {
-      const L = (62 + 14 * Math.sin(a0 * 3)) * s;
-      const droop = 26 * s;
-      const ex = top.x + Math.cos(a0) * L;
-      const ey = top.y + Math.sin(a0) * L * 0.55 + droop;
-      const cx = top.x + Math.cos(a0) * L * 0.55;
-      const cy = top.y + Math.sin(a0) * L * 0.5 - 10 * s;
-      g.fillStyle = '#140a1f';
-      g.beginPath();
-      g.moveTo(top.x, top.y);
-      g.quadraticCurveTo(cx, cy - 4 * s, ex, ey);
-      g.quadraticCurveTo(cx, cy + 6 * s, top.x, top.y + 3 * s);
-      g.fill();
-      // leaflets
-      g.strokeStyle = '#140a1f';
-      g.lineWidth = 1.4;
-      g.beginPath();
-      for (let k = 2; k < 10; k++) {
-        const u = k / 10;
-        const px = (1 - u) * (1 - u) * top.x + 2 * (1 - u) * u * cx + u * u * ex;
-        const py = (1 - u) * (1 - u) * top.y + 2 * (1 - u) * u * cy + u * u * ey;
-        g.moveTo(px, py);
-        g.lineTo(px + Math.cos(a0 + 1.4) * 8 * s, py + 10 * s);
-      }
-      g.stroke();
-      g.strokeStyle = 'rgba(37,208,255,0.65)';
-      g.lineWidth = 1;
-      g.beginPath();
-      g.moveTo(top.x, top.y);
-      g.quadraticCurveTo(cx, cy - 4 * s, ex, ey);
-      g.stroke();
-    }
+    g.closePath();
+    g.fill();
+    // legs
+    for (const lx of [-7.5, -4.5, 5, 8]) g.fillRect(lx - 0.9, -6, 1.8, 6);
+    // tail
+    g.strokeStyle = CUT;
+    g.lineWidth = 1;
+    g.beginPath();
+    g.moveTo(10.5, -12);
+    g.quadraticCurveTo(12.5, -8, 11.5, -3.5);
+    g.stroke();
+    // warm rim light along the back
+    g.strokeStyle = 'rgba(255,179,71,0.85)';
+    g.lineWidth = 1 / sc + 0.2;
+    g.beginPath();
+    g.moveTo(-9, -13);
+    g.quadraticCurveTo(0, -15, 9, -13);
+    g.stroke();
     g.restore();
   };
-  palm(62, 640, 300, 16, 1.0);
+  cow(486, nearY(486) + 22, 1.05, true);
+  cow(522, nearY(522) + 27, 1.1, false);
+  cow(553, nearY(553) + 19, 0.85, true);
+  g.restore();
 }
 
 /** Bake-time chromatic aberration: red channel shifted right, blue shifted left. */
@@ -808,7 +873,7 @@ function paintBackground(g, rng) {
   paintHills(g, rng);
   paintFloor(g);
   paintNearTowers(g);
-  paintPalms(g);
+  paintAltamontDetails(g);
   paintRoad(g);
   paintSign(g);
   chromaShift(g, P, P, 2);
@@ -1069,7 +1134,7 @@ function drawOSD(ctx, lt, t, glitchK) {
   ctx.restore();
   osdText(ctx, 'SP', 940, 104, 40, 'right');
   // timestamp (bottom right): date + running clock
-  const secs = 7 * 3600 + 42 * 60 + 5 + Math.max(0, t - 112);
+  const secs = 7 * 3600 + 42 * 60 + 5 + Math.max(0, lt + 8);
   const hh = Math.floor(secs / 3600) % 12 || 12;
   const mm = String(Math.floor(secs / 60) % 60).padStart(2, '0');
   const ss = String(Math.floor(secs) % 60).padStart(2, '0');
@@ -1317,7 +1382,7 @@ export function render(kit, slot, scene, params) {
   const { t, rawLocalT, isThumbnail } = params;
   const lt = isThumbnail ? 2.0 : rawLocalT;
   const glitchK = !isThumbnail && lt >= GLITCH_T0 && lt < GLITCH_T1 ? (lt - GLITCH_T0) / (GLITCH_T1 - GLITCH_T0) : 0;
-  const star = !isThumbnail && lt >= STAR_T;
+  const star = !isThumbnail && lt >= STAR_T && lt < STAR_END;
   ctx.save();
   if (glitchK > 0) {
     // the tape loses tracking: paint the picture off-screen, then tear it into shifted strips

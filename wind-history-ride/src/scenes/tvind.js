@@ -13,11 +13,13 @@
 // side of the tower; the westerly wind arrives from the left). Hub ~50 m. Rotor speed
 // is limited to ~21 rpm — here 20 rpm, so one blade passes the top every beat-pair.
 //
-// Story: 1973 oil crisis. A petrol station with a "售完 · SOLD OUT" board and a queue of
-// boxy 70s cars at a standstill; the spoonbill simply pedals past on the cycle path.
-// Gag: the price digits on the pylon roll upward on every beat of bars 2–3; the queue
-// honks ("DYT!") and a waiting driver rattles his newspaper; on bar 4 the volunteers
-// at the foot of the turbine cheer the rider.
+// Story: 1973 oil crisis. A petrol station with a "售完 · UDSOLGT" (sold out) board and a
+// queue of boxy 70s cars at a standstill; the spoonbill simply pedals past on the cycle path.
+// Gag: the "PRISEN STIGER" (price rising) arrow on the pylon climbs one chevron on every
+// beat of bars 2–3 (a generic sign: no price figure is shown); the queue honks ("DYT!")
+// and a waiting driver rattles his newspaper; on bar 4 the volunteers at the foot of the
+// turbine cheer the rider. The 1978 tower is raw grey concrete (the red-and-white paint
+// came only in 1999); the footer marks 2 MW as the nominal rating (it ran at ~1 MW).
 
 const P = 1000;
 const TAU = Math.PI * 2;
@@ -255,8 +257,9 @@ function bakeBack(kit) {
       } catch (e) {
         /* */
       }
-      q.fillText('OLIEKRISE 1973 ?', 58, 78);
-      q.fillRect(58, 88, 214, 4);
+      const head = 'EFTER OLIEKRISEN 1973';
+      q.fillText(head, 58, 78);
+      q.fillRect(58, 88, Math.min(380, q.measureText(head).width - 3), 4);
     });
     g.restore();
     knock(g, (q) => fatText(q, 'VINDKRAFT!', 52, 232, 168, { fill: PAPER, shadow: null, inline: null, fat: 0.16 }));
@@ -898,7 +901,9 @@ function bakeFront(kit) {
       } catch (e) {
         /* */
       }
-      q.fillText('KR. PR. LITER', bx.x0 + 16, bx.y1 - 18);
+      q.textAlign = 'center';
+      q.fillText('PRISEN STIGER', PYLON.x, bx.y1 - 18, bx.x1 - bx.x0 - 24);
+      q.textAlign = 'left';
     });
     fatText(g, 'BENZIN', bx.x0 + 14, bx.y0 + 31, 30, { fill: PAPER, shadow: null, inline: null, fat: 0.05, spacing: 4 });
 
@@ -926,7 +931,7 @@ function bakeFront(kit) {
       } catch (e) {
         /* */
       }
-      q.fillText('3 VINGER · ROTOR Ø 54 M · NAV 50 M · BETONTÅRN · 2 MW', 58, 888);
+      q.fillText('3 VINGER · ROTOR Ø 54 M · NAV CA. 50 M · BETONTÅRN · NOMINELT 2 MW', 58, 888);
       q.font = `22px "Bebas Neue", Impact, sans-serif`;
       q.fillText('OLIEKRISE · BILFRI SØNDAG 25.11.1973 · TVINDKRAFT INDVIET 26.3.1978', 60, 925);
       q.font = `14px "Bebas Neue", Impact, sans-serif`;
@@ -1004,57 +1009,57 @@ function bakePaper(kit) {
 // -----------------------------------------------------------------------------
 // Animated pieces
 // -----------------------------------------------------------------------------
-const PRICES = ['1,42', '1,48', '1,55', '1,63', '1,74', '1,86', '1,98', '2,15', '2,38'];
+// The price sign is a generic "PRISEN STIGER" (price rising) arrow, not a figure: the
+// numbers would be illustrative, so none are shown.
+const CHEVRONS = 4;
 
-/** Price board: digits roll upward on every beat of bars 2–3 (localT 2.0 … 5.5). */
+/** Rising-price sign: one more chevron lights on every beat of bars 2–3 (localT 2.0 … 5.5). */
 function drawPrice(g, T) {
   const beat = Math.floor((T - 2) / 0.5); // 0 at T=2.0
-  const idx = clamp(beat + 1, 0, PRICES.length - 1);
-  const prev = clamp(idx - 1, 0, PRICES.length - 1);
-  const since = T - (2 + beat * 0.5);
-  const rolling = beat >= 0 && beat < PRICES.length - 1 && since < 0.2;
-  const p = rolling ? sstep(0, 0.2, since) : 1;
-  const cur = T < 2 ? PRICES[0] : PRICES[idx];
-  const old = T < 2 ? PRICES[0] : PRICES[prev];
+  const active = beat >= 0 && beat < 8;
+  // bar 2: the arrow fills, chevron by chevron; bar 3: a highlight keeps climbing it
+  const lit = T < 2 ? 1 : active && beat < CHEVRONS ? beat + 1 : CHEVRONS;
+  const freshIdx = active ? beat % CHEVRONS : -1;
+  const since = active ? T - (2 + beat * 0.5) : 1;
+  const pop = active ? Math.exp(-since * 9) : 0; // the newest chevron pops in
   const bx = PYLON.box;
-  const x0 = bx.x0 + 14;
-  const y0 = bx.y0 + 52;
-  const cw = 22;
-  const ch = 50;
+  const cx = PYLON.x;
+  const yTop = bx.y0 + 53;
+  const step = 12;
+  const hw = 31; // half width
+  const rise = 12; // chevron height
+  const th = 7; // arm thickness
+  const chev = (q, y, s) => {
+    q.beginPath();
+    q.moveTo(cx - hw * s, y + rise * s);
+    q.lineTo(cx, y);
+    q.lineTo(cx + hw * s, y + rise * s);
+    q.lineTo(cx + hw * s, y + rise * s + th * s);
+    q.lineTo(cx, y + th * s);
+    q.lineTo(cx - hw * s, y + rise * s + th * s);
+    q.closePath();
+  };
   g.save();
-  g.font = `56px "Bebas Neue", Impact, sans-serif`;
-  g.textBaseline = 'alphabetic';
-  for (let i = 0; i < 4; i++) {
-    const cx = x0 + i * cw + (i > 1 ? 2 : 0);
-    if (i === 1) {
-      // the decimal comma
+  g.lineJoin = 'round';
+  for (let i = 0; i < CHEVRONS; i++) {
+    // i = 0 is the bottom chevron
+    const y = yTop + (CHEVRONS - 1 - i) * step;
+    const on = i < lit;
+    const fresh = on && i === freshIdx;
+    const s = fresh ? 1 + 0.18 * pop : 1;
+    const yy = y - (s - 1) * rise * 0.5;
+    if (on) {
       g.fillStyle = INK.key;
-      g.fillText(',', cx + 4, y0 + ch - 4);
-      continue;
+      chev(g, yy + 2, s);
+      g.fill();
+      g.fillStyle = fresh && pop > 0.4 ? PAPER : INK.orange;
+      chev(g, yy, s);
+      g.fill();
     }
-    const a = old[i];
-    const b = cur[i];
-    // tile
-    g.fillStyle = PAPER;
-    g.fillRect(cx, y0, cw - 3, ch);
     g.strokeStyle = INK.key;
-    g.lineWidth = 1.6;
-    g.strokeRect(cx, y0, cw - 3, ch);
-    g.save();
-    g.beginPath();
-    g.rect(cx, y0, cw - 3, ch);
-    g.clip();
-    g.fillStyle = INK.key;
-    if (a !== b && rolling) {
-      g.fillText(a, cx + 1, y0 + ch - 4 - p * ch);
-      g.fillStyle = INK.orange;
-      g.fillText(b, cx + 1, y0 + ch - 4 + (1 - p) * ch);
-    } else {
-      // freshly changed digits stay orange for a moment
-      g.fillStyle = beat >= 0 && beat < PRICES.length - 1 && since < 0.42 && old[i] !== cur[i] ? INK.orange : INK.key;
-      g.fillText(b, cx + 1, y0 + ch - 4);
-    }
-    g.restore();
+    g.lineWidth = on ? 1.8 : 1.4;
+    chev(g, yy, s);
+    g.stroke();
   }
   g.restore();
 }
@@ -1098,7 +1103,7 @@ function drawSoldOut(g, T, kick) {
   } catch (e) {
     /* */
   }
-  g.fillText('SOLD OUT', 2, 75);
+  g.fillText('UDSOLGT', 2, 75);
   g.restore();
 }
 
@@ -1435,7 +1440,7 @@ export function render(kit, slot, scene, params) {
   ctx.drawImage(front, 0, 0);
 
   // price gag + queue reactions
-  drawPrice(ctx, thumb ? 3.2 : T);
+  drawPrice(ctx, thumb ? 3.6 : T);
   const flipKick = !thumb && T > 2 && T < 6 ? Math.exp(-((T - 2) % 0.5) * 8) : 0;
   drawSoldOut(ctx, T, flipKick);
   drawReader(ctx, T, flipKick);

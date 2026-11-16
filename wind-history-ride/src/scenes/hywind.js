@@ -16,8 +16,14 @@
 // The rider's road is a stylised coastal promenade deck at y = 700, just above sea level.
 // Story (4 bars): bar 1–2 the infographic assembles itself on the beat (each callout
 // draws its leader line and pops its label); bar 3 a callout pops onto the spoonbill:
-// "黑面琵鷺 · 0 MW · 100% 人力"; bar 4 a second one notes that its pinwheel is the same
-// three-bladed upwind layout as the 6 MW machine.
+// "黑面琵鷺 · 0 MW · 100% 人力"; bar 4 a second one notes that its pinwheel has three
+// blades, just like the 6 MW machine.
+//
+// Numbers drawn (all from the verified notes): 5 × 6 MW = 30 MW, opened 2017, ~25 km off
+// Peterhead; rotor Ø 154 m; hub ≈ 98–101 m above the sea (labelled 「約 100 m」); spar
+// 91 m long, Ø 14.4 m, 78 m draft; water depth 95–120 m; 3 mooring chains of ~900 m with
+// suction anchors; capacity factor ~54 % averaged over the first five years (operator-
+// reported figure).
 
 const P = 1000;
 const TAU = Math.PI * 2;
@@ -57,14 +63,31 @@ const GHOSTS = [
   { x: 904, s: 0.29, ph: 3.5 },
 ];
 
+// every CJK / full-width character drawn by this scene (baked or per frame)
 const TEXTS =
-  '海平面輪轂高轉子直徑吃水水深單柱式浮筒壓艙石塊海水錨鏈各條吸力錨動態海纜岸上部固定式浮動式立在海床用繫泊容量因數前年平均外海黑面琵鷺人力迷你三葉上風同款隨浪微幅擺動它浮著每約公尺比例未按下一';
+  '海平面輪轂高約轉子直徑吃水水深單柱式浮筒長壓艙低重心錨鏈條各未按比例吸力錨動態海纜岸上' +
+  '浮動式風場總容量部啟用固定式立在海床上用繫泊蘇格蘭外海北單機隨浪微幅擺動它浮著！' +
+  '因數運轉頭年平均營商公布高度與深度依實際繪製除（）黑面琵鷺人力迷你三葉片跟一樣＋';
+const LATIN = 'Peterhead0123456789 MWkmNØ·×~–−%→';
 if (typeof document !== 'undefined' && document.fonts && document.fonts.load) {
   try {
-    document.fonts.load('700 18px "Noto Sans TC"', TEXTS).catch(() => {});
-    document.fonts.load('500 14px "Noto Sans TC"', TEXTS).catch(() => {});
+    for (const w of ['500', '700']) document.fonts.load(`${w} 16px "Noto Sans TC"`, TEXTS + LATIN).catch(() => {});
+    document.fonts.load('400 40px "Bebas Neue"', '0123456789MW%').catch(() => {});
   } catch (e) {
     /* offline: system fallback */
+  }
+}
+let _fontsOk = false;
+function fontsReady() {
+  if (_fontsOk) return true;
+  try {
+    _fontsOk =
+      document.fonts.check('500 16px "Noto Sans TC"', TEXTS) &&
+      document.fonts.check('700 16px "Noto Sans TC"', TEXTS) &&
+      document.fonts.check('400 40px "Bebas Neue"', '0123456789MW%');
+    return _fontsOk;
+  } catch (e) {
+    return true;
   }
 }
 
@@ -109,7 +132,8 @@ function pill(ctx, x, y, main, sub, opts = {}) {
   ctx.globalAlpha *= alpha;
   ctx.font = `700 ${size}px ${F_SANS}`;
   const w1 = ctx.measureText(main).width;
-  ctx.font = `500 ${Math.round(size * 0.78)}px ${F_SANS}`;
+  const subSize = Math.max(13, Math.round(size * 0.8));
+  ctx.font = `500 ${subSize}px ${F_SANS}`;
   const w2 = sub ? ctx.measureText(sub).width : 0;
   const padX = 9;
   const gap = sub ? 7 : 0;
@@ -132,7 +156,7 @@ function pill(ctx, x, y, main, sub, opts = {}) {
   ctx.fillText(main, x0 + padX, y + 0.5);
   if (sub) {
     ctx.fillStyle = subColor;
-    ctx.font = `500 ${Math.round(size * 0.78)}px ${F_SANS}`;
+    ctx.font = `500 ${subSize}px ${F_SANS}`;
     ctx.fillText(sub, x0 + padX + w1 + gap, y + 1);
   }
   ctx.restore();
@@ -287,7 +311,8 @@ function fish(ctx, x, y, s, dir, color) {
 // static background bake
 // -----------------------------------------------------------------------------
 function bakeBack(kit) {
-  return kit.bake('hywind_back_v1', P, P, (g) => {
+  // keyed on font readiness so a bake made before the web fonts arrived is redone
+  return kit.bake(`hywind_back_v2_${fontsReady() ? 'f' : 'n'}`, P, P, (g) => {
     g.fillStyle = BG;
     g.fillRect(0, 0, P, P);
     // faint infographic dot grid in the sky
@@ -325,7 +350,7 @@ function bakeBack(kit) {
     g.textAlign = 'center';
     g.fillText('固定式', 420, 72);
     g.fillText('浮動式', 562, 72);
-    g.font = `500 12px ${F_SANS}`;
+    g.font = `500 13px ${F_SANS}`;
     g.fillStyle = TEAL;
     g.fillText('立在海床上', 420, 228);
     g.fillText('用錨鏈繫泊', 562, 228);
@@ -420,9 +445,9 @@ function bakeBack(kit) {
       g.font = `700 14px ${F_SANS}`;
       g.textAlign = 'right';
       g.fillText('Peterhead', px - 10, py - 18);
-      g.font = `500 11px ${F_SANS}`;
+      g.font = `500 13px ${F_SANS}`;
       g.fillStyle = TEAL;
-      g.fillText('蘇格蘭', px - 10, py - 4);
+      g.fillText('蘇格蘭', px - 10, py - 2);
       // dashed distance to the farm
       g.strokeStyle = NAVY;
       g.lineWidth = 1.2;
@@ -458,9 +483,9 @@ function bakeBack(kit) {
       g.lineTo(924, 84);
       g.closePath();
       g.fill();
-      g.font = `700 11px ${F_SANS}`;
-      g.fillText('N', 930, 98);
-      g.font = `500 11px ${F_SANS}`;
+      g.font = `700 13px ${F_SANS}`;
+      g.fillText('N', 930, 99);
+      g.font = `500 13px ${F_SANS}`;
       g.fillStyle = TEAL;
       g.fillText('北海', 900, 220);
       g.textAlign = 'left';
@@ -485,11 +510,12 @@ function bakeBack(kit) {
       g.textAlign = 'center';
       g.font = `400 34px ${F_NUM}`;
       g.fillText('54%', cx, cy + 12);
-      g.font = `700 13px ${F_SANS}`;
-      g.fillText('容量因數', cx, cy + 74);
-      g.font = `500 11px ${F_SANS}`;
+      g.font = `700 14px ${F_SANS}`;
+      g.fillText('容量因數', cx, cy + 72);
+      g.font = `500 13px ${F_SANS}`;
       g.fillStyle = TEAL;
-      g.fillText('運轉前 5 年平均', cx, cy + 92);
+      g.fillText('運轉頭 5 年平均', cx, cy + 91);
+      g.fillText('（營運商公布）', cx, cy + 108);
       g.textAlign = 'left';
     }
 
@@ -537,7 +563,7 @@ function bakeBack(kit) {
     g.moveTo(44, SL);
     g.lineTo(44, SEABED);
     g.stroke();
-    g.font = `500 11px ${F_SANS}`;
+    g.font = `500 12px ${F_SANS}`;
     g.textBaseline = 'middle';
     for (let d = 0; d <= 100; d += 20) {
       const y = SL + d * S;
@@ -550,10 +576,10 @@ function bakeBack(kit) {
     g.textBaseline = 'alphabetic';
 
     // scale note
-    g.font = `500 12px ${F_SANS}`;
+    g.font = `500 13px ${F_SANS}`;
     g.fillStyle = TEAL;
     g.textAlign = 'right';
-    g.fillText('剖面依實際比例繪製（錨鏈水平距離除外）', 956, 268);
+    g.fillText('高度與深度依實際比例繪製（錨鏈長度除外）', 956, 268);
     g.textAlign = 'left';
 
     // ---- static dimension lines (true scale)
@@ -762,7 +788,7 @@ function drawFloater(ctx, sc, rotAng, opts = {}) {
     ctx.lineTo(cx + tw0, tBot);
     ctx.closePath();
     ctx.fill();
-    // yellow-ish access platform at the transition is replaced by a navy flange band
+    // access platform / flange at the top of the spar (flat navy band)
     ctx.fillStyle = NAVY;
     ctx.fillRect(cx - tw0 - 3, tBot - 4, tw0 * 2 + 6, 4);
   }
@@ -872,8 +898,8 @@ function anchorIcon(ctx, x, y, s = 1, alpha = 1) {
 const RIDER_STYLE = {
   plumage: WHITE,
   plumageShade: '#d7e8ea',
-  mask: NAVY,
-  bill: NAVY,
+  mask: '#0a1822',
+  bill: '#0a1822',
   eyeRing: '#f2b134',
   legs: NAVY,
   crest: '#f2c14e',
@@ -1058,15 +1084,16 @@ export function render(kit, slot, scene, params) {
   const sparA = xform({ x: TX + 15.8, y: SL + 30 * S }, st, PIVOT);
   const ballA = xform({ x: TX + 15.8, y: SPAR_BOT - 22 }, st, PIVOT);
   // static dimension labels
-  pill(ctx, 232, (HUB.y + SL) / 2, '98 m', '輪轂高', { align: 'center', alpha: rev(0.0) });
-  pill(ctx, 584, HUB.y - 30, 'Ø 154 m', '轉子直徑', { align: 'center', alpha: rev(0.5) });
-  callout(ctx, nacA, { x: 498, y: 318 }, { x: 510, y: 318 }, '6 MW', '單機容量', rev(1.0));
+  pill(ctx, 232, (HUB.y + SL) / 2, '約 100 m', '輪轂高', { align: 'center', alpha: rev(0.0) });
+  // at the top end of the rotor dimension line: clear of the rider's head (y ≈ 470–520)
+  pill(ctx, 596, HUB.y - R, 'Ø 154 m', '轉子直徑', { align: 'left', alpha: rev(0.5) });
+  callout(ctx, nacA, { x: 498, y: 296 }, { x: 510, y: 296 }, '6 MW', '單機容量', rev(1.0));
   pill(ctx, 72, SL + 22, '海平面', null, { align: 'left', alpha: rev(1.5), size: 13 });
   pill(ctx, TX + 46, SL + 40 * S, '78 m', '吃水', { align: 'center', alpha: rev(2.0) });
-  pill(ctx, 944, SL + 50 * S, '95–120 m', '水深', { align: 'right', alpha: rev(2.5) });
+  pill(ctx, 944, SL + 44 * S, '95–120 m', '水深', { align: 'right', alpha: rev(2.5) });
   callout(ctx, sparA, { x: TX + 92, y: SL + 22 * S }, { x: TX + 104, y: SL + 22 * S }, '單柱式浮筒', '長 91 m · Ø 14.4 m', rev(2.75));
-  callout(ctx, ballA, { x: TX + 92, y: SPAR_BOT - 8 }, { x: TX + 104, y: SPAR_BOT - 8 }, '壓艙', '石塊＋海水', rev(3.0));
-  callout(ctx, { x: TX + 160, y: SEABED - 9 }, { x: 640, y: 872 }, { x: 652, y: 872 }, '3 條錨鏈', '各約 900 m（未按比例）', rev(3.25));
+  callout(ctx, ballA, { x: TX + 92, y: SPAR_BOT - 8 }, { x: TX + 104, y: SPAR_BOT - 8 }, '壓艙', '壓低重心', rev(3.0));
+  callout(ctx, { x: TX + 160, y: SEABED - 9 }, { x: 640, y: 876 }, { x: 652, y: 876 }, '3 條錨鏈', '各約 900 m（未按比例）', rev(3.25));
   callout(ctx, { x: 768, y: SEABED - 10 }, { x: 800, y: 922 }, { x: 812, y: 922 }, '吸力錨', null, rev(3.5));
   callout(ctx, { x: TX - 86, y: SL + 66 * S - 8 }, { x: TX - 140, y: SL + 46 * S }, { x: TX - 152, y: SL + 46 * S }, '動態海纜', '→ 岸上', rev(3.75), 'right');
   // "it floats!" pitch indicator at the nacelle
@@ -1106,7 +1133,9 @@ export function render(kit, slot, scene, params) {
     ctx.lineTo(rig.poleTop.x, rig.poleTop.y);
     ctx.stroke();
     ctx.restore();
-    kit.drawPinwheel(ctx, rig.pinHub, rig.pinwheelAngle, { type: 'three', colors: [WHITE, TEAL], stroke: NAVY, lineWidth: 1.2, time: rig.time });
+    // teal blades + white hub (the era's two pinwheel colours) so the mini rotor reads
+    // even when it passes in front of the white 6 MW rotor
+    kit.drawPinwheel(ctx, rig.pinHub, rig.pinwheelAngle, { type: 'three', colors: [TEAL, WHITE], stroke: NAVY, lineWidth: 1.3, time: rig.time });
     kit.drawRider(ctx, rig, { ...RIDER_STYLE, showPinwheel: false });
 
     const out = thumb ? 1 : 1 - sstep(8.3, 8.9, T);
@@ -1114,15 +1143,15 @@ export function render(kit, slot, scene, params) {
     if (g1 > 0) {
       const a = { x: rig.head.x + 2, y: rig.head.y - rig.head.r - 2 };
       const lx = clamp(a.x + 46, 150, 830);
-      const ly = 428;
+      const ly = 440;
       callout(ctx, a, { x: lx, y: ly + 8 }, { x: lx, y: ly }, '黑面琵鷺', '0 MW · 100% 人力', g1, 'center', { dot: TEAL });
     }
     const g2 = thumb ? 0 : clamp((T - 6.0) / 0.5, 0, 1) * out;
     if (g2 > 0) {
       const a = { x: rig.pinHub.x, y: rig.pinHub.y - rig.pinHub.r - 3 };
       const lx = clamp(a.x - 10, 120, 860);
-      const ly = 380;
-      callout(ctx, a, { x: lx, y: ly + 8 }, { x: lx, y: ly }, '迷你轉子', '三葉上風式 · 跟 6 MW 同款', g2, 'center', { dot: TEAL });
+      const ly = 400;
+      callout(ctx, a, { x: lx, y: ly + 8 }, { x: lx, y: ly }, '迷你轉子', '三葉片 · 跟 6 MW 一樣', g2, 'center', { dot: TEAL });
     }
   }
   ctx.restore();

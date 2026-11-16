@@ -1,5 +1,5 @@
 // src/scenes/persia.js
-// #02 約 900 · 波斯垂直軸風車 — the Sistan panemone (as still standing at Nashtifan),
+// #02 約 10 世紀 · 波斯垂直軸風車 — the Sistan panemone (as still standing at Nashtifan),
 // painted as a Persian miniature: flat jewel colours, lapis sky with Chinese-style
 // "chi" cloud ribbons, spiky pastel rocks on a high horizon, cypress + blossoming tree,
 // figures in robes and turbans, illuminated border strips that the road breaks through.
@@ -1957,16 +1957,28 @@ function drawDonkey(ctx, x, y, s, st) {
   ctx.moveTo(20, -58 + bob);
   ctx.lineTo(16, -42 + bob);
   ctx.stroke();
-  // saddle bags (khurjin, kilim-woven)
+  // saddle bags (khurjin, kilim-woven): a soft pouch hanging over the flank,
+  // rounded at the bottom so it reads as a bag (not a drum)
+  const bagPath = () => {
+    ctx.beginPath();
+    ctx.moveTo(-19, -61 + bob);
+    ctx.lineTo(13, -61 + bob);
+    ctx.lineTo(13.5, -45 + bob);
+    ctx.quadraticCurveTo(13, -35 + bob, 4, -35.5 + bob);
+    ctx.lineTo(-10, -35.5 + bob);
+    ctx.quadraticCurveTo(-19.5, -35 + bob, -19.5, -45 + bob);
+    ctx.closePath();
+  };
+  bagPath();
   ctx.fillStyle = C.carmine;
-  ctx.fillRect(-18, -62 + bob, 30, 26);
-  ctx.strokeStyle = ink;
-  ctx.lineWidth = 0.9;
-  ctx.strokeRect(-18, -62 + bob, 30, 26);
+  ctx.fill();
+  ctx.save();
+  bagPath();
+  ctx.clip();
   ctx.fillStyle = C.goldLight;
   for (let k = 0; k < 3; k++) {
     const cx = -11 + k * 8;
-    const cy = -49 + bob;
+    const cy = -48 + bob;
     ctx.beginPath();
     ctx.moveTo(cx, cy - 6);
     ctx.lineTo(cx + 3.5, cy);
@@ -1976,22 +1988,50 @@ function drawDonkey(ctx, x, y, s, st) {
     ctx.fill();
   }
   ctx.fillStyle = C.lapisDeep;
-  ctx.fillRect(-18, -62 + bob, 30, 3);
-  ctx.fillRect(-18, -39 + bob, 30, 3);
+  ctx.fillRect(-20, -61 + bob, 34, 3);
+  ctx.fillRect(-20, -40 + bob, 34, 2.5);
+  ctx.restore();
+  bagPath();
+  ctx.strokeStyle = ink;
+  ctx.lineWidth = 0.9;
+  ctx.stroke();
   // fringe
   ctx.strokeStyle = C.gold;
   ctx.beginPath();
-  for (let k = 0; k < 8; k++) {
-    ctx.moveTo(-17 + k * 4, -36 + bob);
-    ctx.lineTo(-17 + k * 4, -32 + bob);
+  for (let k = 0; k < 7; k++) {
+    ctx.moveTo(-14 + k * 4, -35.5 + bob);
+    ctx.lineTo(-14 + k * 4, -32 + bob);
   }
   ctx.stroke();
-  // grain sack on top
-  ctx.fillStyle = C.cream;
+  // grain sack slung across the back, its neck tied off with cord
   ctx.beginPath();
-  ctx.ellipse(-3, -64 + bob, 15, 6, 0, 0, Math.PI * 2);
+  ctx.moveTo(-18, -60 + bob);
+  ctx.bezierCurveTo(-22, -68 + bob, -14, -76 + bob, -4, -75 + bob);
+  ctx.bezierCurveTo(5, -76 + bob, 10, -72 + bob, 11, -68 + bob);
+  ctx.lineTo(14, -70 + bob);
+  ctx.lineTo(16.5, -64 + bob);
+  ctx.lineTo(12, -63 + bob);
+  ctx.bezierCurveTo(9, -59 + bob, -8, -58 + bob, -18, -60 + bob);
+  ctx.closePath();
+  ctx.fillStyle = C.cream;
   ctx.fill();
   ctx.strokeStyle = ink;
+  ctx.lineWidth = 0.9;
+  ctx.stroke();
+  // folds and the cord
+  ctx.strokeStyle = 'rgba(110,74,46,0.6)';
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(-12, -71 + bob);
+  ctx.quadraticCurveTo(-8, -66 + bob, -9, -61 + bob);
+  ctx.moveTo(1, -73 + bob);
+  ctx.quadraticCurveTo(3, -67 + bob, 2, -60 + bob);
+  ctx.stroke();
+  ctx.strokeStyle = C.vermilion;
+  ctx.lineWidth = 1.3;
+  ctx.beginPath();
+  ctx.moveTo(11, -69 + bob);
+  ctx.lineTo(12.5, -62.5 + bob);
   ctx.stroke();
   // neck + head
   const hd = st.head; // 0 = grazing (down), 1 = up / alert
@@ -2224,7 +2264,7 @@ const DONKEY_V = 190;
 const DPATH = [
   { x: DONKEY.x, y: DONKEY.y },
   { x: 300, y: 716 },
-  { x: 884, y: 716 },
+  { x: 866, y: 716 }, // the nose just breaks the painted border, clear of the frame
 ];
 const DPATH_LEN = Math.hypot(DPATH[1].x - DPATH[0].x, DPATH[1].y - DPATH[0].y) + (DPATH[2].x - DPATH[1].x);
 
@@ -2544,8 +2584,13 @@ export function render(kit, slot, scene, params) {
   const ds = donkeyState(lt);
   drawDonkey(ctx, ds.x, ds.y, 1.3, ds);
 
-  if (kit.riderVisible(params)) {
-    const rig = kit.riderRig(params);
+  // outro thumbnail: park the rider right of the iwan so the miller and the millstone
+  // (the direct-drive detail) stay visible
+  const rp = isThumbnail
+    ? { ...params, riderLocalX: 680, riderWorldX: (params.riderWorldX || 0) + 680 - params.riderLocalX }
+    : params;
+  if (kit.riderVisible(rp)) {
+    const rig = kit.riderRig(rp);
     const pin = { ...(scene.pinwheel || { type: 'panemone' }), stroke: '#6e4a1c' };
     // miniature contour: a dark ink line under a fine gold hairline
     kit.drawRider(ctx, rig, { ...RIDER_STYLE, outline: '#3a2414', outlineWidth: 2.3, pinwheel: { ...pin, stroke: '#3a2414', lineWidth: 2.4 } });

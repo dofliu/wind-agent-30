@@ -9,8 +9,9 @@
 // Machine: Johannes Juul's Gedser wind turbine (Falster, 1956–57): 200 kW, THREE blades,
 // UPWIND rotor 24 m across turning a steady ~30 rpm (stall-regulated, asynchronous
 // generator straight onto the grid), blades braced by stays to a stay-mast projecting
-// forward of the hub and to one another, rotatable aerodynamic tip brakes, nacelle on a
-// tapered concrete tower ~24 m high. Baltic coast: ferry on the horizon, lighthouse on
+// forward of the hub (to about mid-span) and wire-tied to one another near the tips,
+// rotatable aerodynamic tip brakes, nacelle on a smooth reinforced-concrete cylinder
+// (hub ~24 m). Baltic coast: ferry on the horizon, lighthouse on
 // the point, gulls, a farm, a transformer hut flying the Dannebrog.
 //
 // Gag (bar 3): a strong gust — the tip brakes swing out (red tips turn broadside), the
@@ -92,7 +93,7 @@ function discVec(du, dv) {
 }
 
 // tower (tapered concrete, round)
-const TW = { rb: 2.3, rt: 1.35, h: 23.2 };
+const TW = { rb: 1.85, rt: 1.55, h: 23.2 }; // a stiffened concrete cylinder (only a hint of taper)
 const NAC = { x0: -1.9, x1: 3.9, y0: 23.3, y1: 25.9, z: 1.15 };
 const SUN = { x: 724, y: 262, r: 158 };
 
@@ -516,6 +517,8 @@ function paintHeadline(g) {
   g.font = '500 14px "Noto Sans TC", "Helvetica Neue", Arial, sans-serif';
   g.fillStyle = BLUE;
   spaced(g, 'Ø 24 m  ·  3 VINGER  ·  30 o/min  ·  NAVHØJDE 24 m', 58, 310, 1.4);
+  g.fillStyle = CHAR;
+  spaced(g, 'KONSTRUERET AF JOHANNES JUUL', 58, 332, 1.4);
   g.restore();
 }
 
@@ -524,7 +527,7 @@ function paintFooter(g) {
   g.textBaseline = 'alphabetic';
   g.fillStyle = PAPER;
   g.font = '700 50px "Noto Sans TC", sans-serif';
-  spaced(g, '三葉・迎風・失速控制', 56, 900, 6);
+  spaced(g, '三葉片·上風·失速控制', 56, 900, 6);
   g.fillStyle = MUSTARD;
   g.font = '700 15px "Noto Sans TC", sans-serif';
   spaced(g, 'TRE VINGER · STALLREGULERET · ASYNKRONGENERATOR · 200 kW', 58, 934, 2.2);
@@ -583,7 +586,8 @@ function paintGrainOverlay(kit, g, rng) {
 // -----------------------------------------------------------------------------
 const R_ROOT = 1.5;
 const R_TB = 9.9; // start of the rotatable tip
-const R_STAY = 7.2;
+const R_STAY = 7.2; // struts from the nose reach the blades at about mid-span
+const R_TIE = 9.3; // the blade-to-blade wires run near the outer ends
 function chordAt(r) {
   if (r < 2.6) return lerp(1.5, 2.45, (r - R_ROOT) / (2.6 - R_ROOT));
   return lerp(2.45, 1.3, (r - 2.6) / (R_TB - 2.6));
@@ -673,16 +677,23 @@ function drawRotor(ctx, T) {
       ctx.stroke();
     }
   }
-  // stays: from the stay-mast tip to each blade spar, and blade to blade
+  // stays: struts from the stay-mast tip to each blade at about mid-span, and thin
+  // wires tying neighbouring blades together near their outer ends (a triangle)
   const B = phis.map((phi) => disc(R_STAY, phi));
+  const W = phis.map((phi) => disc(R_TIE, phi));
   ctx.strokeStyle = CHAR;
-  ctx.lineWidth = 1.2;
+  ctx.lineWidth = 1.3;
   ctx.beginPath();
   for (let k = 0; k < 3; k++) {
     ctx.moveTo(NOSE.x, NOSE.y);
     ctx.lineTo(B[k].x, B[k].y);
-    ctx.moveTo(B[k].x, B[k].y);
-    ctx.lineTo(B[(k + 1) % 3].x, B[(k + 1) % 3].y);
+  }
+  ctx.stroke();
+  ctx.lineWidth = 0.9;
+  ctx.beginPath();
+  for (let k = 0; k < 3; k++) {
+    ctx.moveTo(W[k].x, W[k].y);
+    ctx.lineTo(W[(k + 1) % 3].x, W[(k + 1) % 3].y);
   }
   ctx.stroke();
   // stay clamps
@@ -690,6 +701,11 @@ function drawRotor(ctx, T) {
   for (const p of B) {
     ctx.beginPath();
     ctx.arc(p.x, p.y, 2.6, 0, TAU);
+    ctx.fill();
+  }
+  for (const p of W) {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 1.8, 0, TAU);
     ctx.fill();
   }
   // hub cap and the forward stay-mast (a tapered spike)
@@ -1021,9 +1037,9 @@ function drawPictogram(ctx, T) {
   ctx.restore();
   ctx.save();
   ctx.fillStyle = PAPER;
-  ctx.font = '700 13px "Noto Sans TC", sans-serif';
+  ctx.font = '700 15px "Noto Sans TC", sans-serif';
   ctx.textAlign = 'center';
-  spaced(ctx, '葉尖煞車', PICT.x, PICT.y + PICT.r + 20, 3, 'center');
+  spaced(ctx, '葉尖煞車', PICT.x, PICT.y + PICT.r + 21, 3, 'center');
   ctx.restore();
 }
 
@@ -1120,21 +1136,21 @@ export function render(kit, slot, scene, params) {
   const thumb = !!params.isThumbnail;
   const T = thumb ? 2.4 : params.rawLocalT;
   ctx.save();
-  const bg = kit.bake('gedser_bg_v1', S, S, (g, rng) => paintBackground(kit, g, rng));
+  const bg = kit.bake('gedser_bg_v2', S, S, (g, rng) => paintBackground(kit, g, rng));
   ctx.drawImage(bg, 0, 0);
 
   drawFerry(ctx, T);
   drawWaves(ctx, T);
   drawPictogram(ctx, thumb ? 0 : T);
   drawFlag(ctx, T);
-  drawRotor(ctx, T);
 
-  // gulls in the sky
+  // distant gulls in the sky (behind the rotor)
   if (!thumb) {
     const gx = pmod(T * 22 + 300, 1300) - 150;
     drawGull(ctx, 1000 - gx, 150 + Math.sin(T * 0.7) * 10, 0.75, -1, Math.sin(T * 2.2) * 0.3);
     drawGull(ctx, 420 + Math.sin(T * 0.5) * 60, 470 + Math.cos(T * 0.5) * 12, 0.6, Math.cos(T * 0.5) > 0 ? -1 : 1, Math.sin(T * 5) * 0.8);
   }
+  drawRotor(ctx, T);
   drawGustLines(ctx, thumb ? 0 : T);
 
   const gs = gullState(T, params.riderLocalX, thumb);

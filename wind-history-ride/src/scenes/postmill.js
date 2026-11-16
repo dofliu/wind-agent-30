@@ -350,7 +350,7 @@ function paintText(g) {
   g.fillText(disp, x1, 114);
   g.font = blackletter(32);
   g.fillText(' ventriticum apud Wedelai,', x1 + dw, 114);
-  g.fillText('ubi ventus de mari flat super colles;', x1, 156);
+  g.fillText('ubi ventus super colles et Humbram flat;', x1, 156);
   const l3 = 'spiritus enim ubi vult spirat.';
   g.fillText(l3, x1, 198);
   const w3 = g.measureText(l3).width;

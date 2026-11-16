@@ -1,5 +1,5 @@
 // src/scenes/dutch.js
-// 《乘風騎行》 #04 荷蘭風車造地 · 1594–1612 — Dutch Windmills Make Land.
+// 《乘風騎行》 #05 荷蘭風車造陸 · 1594–1612 — Dutch Windmills Make Land.
 //
 // Medium: a Delftware tile tableau (tegeltableau). 8 × 8 square tin-glazed tiles,
 // one picture painted across them in cobalt on white: dark "trek" outlines drawn with
@@ -26,7 +26,7 @@
 //   the far ring dike, and a spritsail "kaag" with leeboards on the ring canal.
 //
 // Story (4 bars): a sawyer counts the planks — "EEN · TWEE · DRIE · VIER", one per bar.
-// Bar 3: the old wind-head in the clouds puffs, both mills race, the scoop wheel throws
+// Bar 3: a gust sweeps in from the west, both mills race, the scoop wheel throws
 // a splash that arcs over the dike road and the spoonbill rides straight through it,
 // leaving a trail of drips; the cows look up as the soaked rider comes past.
 
@@ -1965,6 +1965,14 @@ function drawTinySails(ctx, x, y, s, ang) {
   ctx.restore();
 }
 
+/** inside the Beemster roundel (MED2) or its lower scroll, plus a small margin */
+function behindRoundel(p) {
+  const dx = p.x - MED2.x;
+  const dy = p.y - MED2.y;
+  if (dx * dx + dy * dy < (MED2.r + 9) * (MED2.r + 9)) return true;
+  return p.x > MED2.x - 82 && p.x < MED2.x + 82 && p.y > MED2.y + MED2.r - 14 && p.y < MED2.y + MED2.r + 34;
+}
+
 function drawGust(ctx, T, thumb) {
   // brushed wind lines blowing in from the west; on bar 3 a gust sweeps across to the mills
   if (thumb) return;
@@ -1997,6 +2005,9 @@ function drawGust(ctx, T, thumb) {
       for (let q = 0; q < 7; q++) {
         const p0 = path(u0 + ((head - u0) * q) / 7);
         const p1 = path(u0 + ((head - u0) * (q + 1)) / 7);
+        // the low streams start at the left edge: let them pass BEHIND the Beemster
+        // roundel instead of striking through its picture and the "ANNO 1612" scroll
+        if (behindRoundel(p0) || behindRoundel(p1)) continue;
         ctx.strokeStyle = q > 4 ? C.ink : C.mid;
         ctx.lineWidth = 0.6 + q * (0.3 + 0.28 * blow);
         ctx.beginPath();
@@ -2005,7 +2016,7 @@ function drawGust(ctx, T, thumb) {
         ctx.stroke();
       }
       // the head of a gust stroke curls over, as wind is drawn in prints
-      if (blow > 0.2) {
+      if (blow > 0.2 && !behindRoundel(path(head))) {
         const h = path(head);
         const r = 4 + 2.5 * blow;
         ctx.strokeStyle = C.ink;
@@ -2645,11 +2656,13 @@ function drawSawyer(ctx, T, thumb) {
     ctx.globalAlpha = a;
     // the banderol floats high above the sawyer (y ≈ 436–456), clear of the rider's
     // head, crest and pole rotor (top ≈ 467) — at bird height the passing spoonbill hid
-    // "TWEE" for most of bar 2 — and left of the big mill's sail sweep (x > 416)
-    const bx = fx - 22;
+    // "TWEE" for most of bar 2 — and left of the big mill's sail sweep (x > 416).
+    // It is kept inside ONE tile (column x 250–375): centred on the sawyer it sat on
+    // the x = 375 grout joint, which sliced the middle letter ("EEN" read "EIN").
     const by = fy - 180;
     ctx.font = `400 18px ${FONT_ENGRAVING}`;
-    const w = ctx.measureText(word).width + 20;
+    const w = ctx.measureText(word).width + 14;
+    const bx = 3 * TILE - 5 - (w / 2 + 7);
     ctx.fillStyle = GLAZE;
     ctx.beginPath();
     ctx.moveTo(bx - w / 2, by - 8);
@@ -2665,8 +2678,8 @@ function drawSawyer(ctx, T, thumb) {
     ctx.stroke();
     // long ribbon tail of the scroll curling down to the speaker (print-style banderol)
     ctx.beginPath();
-    ctx.moveTo(bx - 6, by + 7);
-    ctx.bezierCurveTo(bx - 26, by + 48, fx + 22, fy - 112, fx + 3, fy - 40);
+    ctx.moveTo(bx + w / 2 - 12, by + 7);
+    ctx.bezierCurveTo(bx + w / 2 - 34, by + 52, fx + 26, fy - 108, fx + 3, fy - 40);
     ctx.stroke();
     ctx.fillStyle = C.dark;
     ctx.textAlign = 'center';

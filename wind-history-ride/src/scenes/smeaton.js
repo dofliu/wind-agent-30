@@ -140,6 +140,65 @@ function swellLine(g, x0, y0, x1, y1, w, alpha = 0.95) {
   g.fill();
 }
 
+// ----- the long s (ſ) -----
+// The web cut of IM Fell English has no U+017F, so a plain fillText('ſ') falls back to
+// another face (a different, lighter long s on every machine). Instead the long s is cut
+// from IM Fell's own 'f': the f with the right-hand half of its cross-bar removed, which
+// is exactly how the Fell types' long s differs from their f.
+/** cross-bar region to the right of the stem, in em (x right, y up from the baseline) */
+const LONG_S_CUT = {
+  italic: [[0.19, 0.335], [0.215, 0.43], [0.47, 0.43], [0.47, 0.335]],
+  roman: [[0.225, 0.365], [0.225, 0.43], [0.47, 0.43], [0.47, 0.365]],
+};
+function fontPx(g) {
+  const m = /(\d+(?:\.\d+)?)px/.exec(g.font);
+  return m ? parseFloat(m[1]) : 16;
+}
+function drawLongS(g, x, y, size, italic) {
+  const cut = italic ? LONG_S_CUT.italic : LONG_S_CUT.roman;
+  g.save();
+  g.beginPath();
+  g.rect(x - size, y - 1.3 * size, 3 * size, 1.9 * size);
+  g.moveTo(x + cut[0][0] * size, y - cut[0][1] * size);
+  for (let i = 1; i < cut.length; i++) g.lineTo(x + cut[i][0] * size, y - cut[i][1] * size);
+  g.closePath();
+  g.clip('evenodd');
+  g.fillText('f', x, y);
+  g.restore();
+}
+/** measureText that counts each ſ as an IM Fell 'f' */
+function measureLS(g, str) {
+  if (!str.includes('ſ')) return g.measureText(str).width;
+  const parts = str.split('ſ');
+  const fw = g.measureText('f').width;
+  return parts.reduce((s, p) => s + (p ? g.measureText(p).width : 0), 0) + fw * (parts.length - 1);
+}
+/** fillText with the long s drawn from 'f' (alphabetic baseline; honours textAlign) */
+function fillTextLS(g, str, x, y) {
+  if (!str.includes('ſ')) {
+    g.fillText(str, x, y);
+    return;
+  }
+  const parts = str.split('ſ');
+  const fw = g.measureText('f').width;
+  const ws = parts.map((p) => (p ? g.measureText(p).width : 0));
+  const total = ws.reduce((a, b) => a + b, 0) + fw * (parts.length - 1);
+  const align = g.textAlign;
+  let cx = align === 'center' ? x - total / 2 : align === 'right' || align === 'end' ? x - total : x;
+  g.textAlign = 'left';
+  const size = fontPx(g);
+  const italic = /italic/.test(g.font);
+  for (let i = 0; i < parts.length; i++) {
+    if (parts[i]) g.fillText(parts[i], cx, y);
+    cx += ws[i];
+    if (i < parts.length - 1) {
+      drawLongS(g, cx, y, size, italic);
+      cx += fw;
+    }
+  }
+  g.textAlign = align;
+}
+
 function text(g, str, x, y, size, opt = {}) {
   const { italic = false, align = 'left', alpha = 0.95, font = null, spacing = 0, baseline = 'alphabetic' } = opt;
   g.font = `${italic ? 'italic ' : ''}400 ${size}px ${font || '"IM Fell English", "Cormorant Garamond", Georgia, serif'}`;
@@ -153,7 +212,8 @@ function text(g, str, x, y, size, opt = {}) {
       /* older canvas: ignore */
     }
   }
-  g.fillText(str, x, y);
+  if (baseline === 'alphabetic' && !spacing) fillTextLS(g, str, x, y);
+  else g.fillText(str, x, y);
   if (spacing) {
     try {
       g.letterSpacing = '0px';
@@ -649,15 +709,18 @@ function fig1StaticLetters(g) {
   letter(g, 'H', H.x + 28, H.y, 16, false);
 }
 
-// pendulum table Y (static) — legs + perforated top
-const TABLE = { X: 212, Z: -36, top: 70, w: 30 };
+// pendulum table Y (static) — legs + perforated top. Drawn as a separate detail of Fig. 1
+// in the open plate between Fig. 1 and Fig. 2, above the ground line of Fig. 3, so the
+// rider (who crosses the whole plate between y 470 and 700) never runs through it.
+const VT = makeView(578, 452, 0.38, 0.3);
+const TABLE = { X: 0, Z: 0, top: 64, w: 28 };
 function tableTop() {
-  return P(V1, TABLE.X, TABLE.top, TABLE.Z);
+  return P(VT, TABLE.X, TABLE.top, TABLE.Z);
 }
 function paintTable(g) {
   const c = tableTop();
   const w = TABLE.w;
-  const g0 = P(V1, TABLE.X, 0, TABLE.Z);
+  const g0 = P(VT, TABLE.X, 0, TABLE.Z);
   // legs
   for (const [dx, dz] of [
     [-1, -1],
@@ -665,15 +728,15 @@ function paintTable(g) {
     [-1, 1],
     [1, 1],
   ]) {
-    const a = P(V1, TABLE.X + dx * w * 0.8, TABLE.top, TABLE.Z + dz * w * 0.5);
-    const b = P(V1, TABLE.X + dx * w * 0.85, 0, TABLE.Z + dz * w * 0.55);
+    const a = P(VT, TABLE.X + dx * w * 0.8, TABLE.top, TABLE.Z + dz * w * 0.5);
+    const b = P(VT, TABLE.X + dx * w * 0.85, 0, TABLE.Z + dz * w * 0.55);
     beam(g, a, b, 4, 0.5);
   }
   // top slab (ellipse-ish box)
-  const tl = P(V1, TABLE.X - w, TABLE.top, TABLE.Z - w * 0.6);
-  const tr = P(V1, TABLE.X + w, TABLE.top, TABLE.Z - w * 0.6);
-  const br = P(V1, TABLE.X + w, TABLE.top, TABLE.Z + w * 0.6);
-  const bl = P(V1, TABLE.X - w, TABLE.top, TABLE.Z + w * 0.6);
+  const tl = P(VT, TABLE.X - w, TABLE.top, TABLE.Z - w * 0.6);
+  const tr = P(VT, TABLE.X + w, TABLE.top, TABLE.Z - w * 0.6);
+  const br = P(VT, TABLE.X + w, TABLE.top, TABLE.Z + w * 0.6);
+  const bl = P(VT, TABLE.X - w, TABLE.top, TABLE.Z + w * 0.6);
   poly(g, [tl, tr, br, bl]);
   g.fillStyle = PAPER;
   g.fill();
@@ -2014,7 +2077,7 @@ function keyRuns(g, items, size) {
   let total = 0;
   for (const r of runs) {
     g.font = `${r.italic ? 'italic ' : ''}400 ${r.size}px ${KEY_FONT}`;
-    r.w = g.measureText(r.s).width;
+    r.w = measureLS(g, r.s);
     total += r.w + r.gap;
   }
   return { runs, total: total - 9 };
@@ -2201,7 +2264,7 @@ export function render(kit, slot, scene, params) {
   // Fig. 2 — the tower mill (cap, fan-tail, sails) and its plan
   drawFig2Dynamic(ctx, T, cap, true);
   drawPlan(ctx, T);
-  text(ctx, 'Plan of the Cap.', PLAN.x, PLAN.y - PLAN.r - 14, 12.5, { italic: true, align: 'center', alpha: 0.85 });
+  text(ctx, 'Plan of the Cap.', PLAN.x, PLAN.y - PLAN.r - 14, 14, { italic: true, align: 'center', alpha: 0.88 });
 
   // Fig. 1 — the whirling arm, pendulum
   drawPendulum(ctx, T, true);

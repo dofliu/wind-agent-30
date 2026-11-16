@@ -897,7 +897,8 @@ export function render(kit, slot, scene, params) {
   g.clearRect(0, 0, LR, LR);
   g.drawImage(back, 0, 0);
 
-  // --- clouds (slow parallax) ------------------------------------------------
+  // --- clouds drift downwind (wind from the left/west: the upwind rotors face left and
+  //     the flag streams to the right) -----------------------------------------------
   const clouds = [
     { key: 'vindeby_cloud_a', w: 46, h: 16, seed: 11, x: 40, y: 34, v: 1.6 },
     { key: 'vindeby_cloud_b', w: 34, h: 13, seed: 23, x: 150, y: 48, v: 1.1 },
@@ -907,7 +908,7 @@ export function render(kit, slot, scene, params) {
   for (const c of clouds) {
     const spr = cloudSprite(c.key, c.w, c.h, c.seed);
     const span = LR + c.w + 20;
-    let x = c.x - c.v * (thumb ? 3 : tq - 120);
+    let x = c.x + c.v * (thumb ? 3 : tq - 120);
     x = ((((x + c.w + 10) % span) + span) % span) - c.w - 10;
     g.drawImage(spr, Math.round(x), c.y);
   }
@@ -1040,8 +1041,10 @@ export function render(kit, slot, scene, params) {
     g.drawImage(gullSprite(flap(1)), ((g2x % 290) + 290) % 290 - 20, 58 + Math.round(Math.sin(gl * 1.6 + 1) * 2));
     // the perched gull on the railing flies off as the bicycle approaches
     const perchX = 96;
-    const take = thumb ? -1 : lt - 2.5;
-    if (take < 0) {
+    const take = thumb ? 99 : lt - 2.5;
+    if (thumb) {
+      // calm outro frame: the perched gull has already flown off
+    } else if (take < 0) {
       const hop = frame % 24 === 0 ? 1 : 0;
       g.drawImage(perchedGull(), perchX, ROAD - 19 - hop);
     } else {
@@ -1064,12 +1067,25 @@ export function render(kit, slot, scene, params) {
     line(g, pb.x, pb.y, pt.x, pt.y, PAL.dgray, 1);
     const hub = { x: lx + (rig.pinHub.x - params.riderLocalX) / SCALE, y: ROAD + (rig.pinHub.y - 700) / SCALE };
     const pa = kit.quantizeTime(params.pinwheelAngle, 6) * 0.5;
+    const blades = [];
     for (let i = 0; i < 3; i++) {
       const a = pa + (i * Math.PI * 2) / 3;
-      const tx = hub.x + Math.sin(a) * 6.5;
-      const ty = hub.y - Math.cos(a) * 6.5;
+      blades.push({ a, tx: hub.x + Math.sin(a) * 6.5, ty: hub.y - Math.cos(a) * 6.5 });
+    }
+    // 1-px ink keyline under the blades (classic sprite outline)
+    for (const b of blades) {
+      for (const [ox, oy] of [
+        [-1, 0],
+        [1, 0],
+        [0, -1],
+        [0, 1],
+      ])
+        line(g, hub.x + ox, hub.y + oy, b.tx + ox, b.ty + oy, PAL.navy, 1);
+    }
+    for (const b of blades) {
+      const { a } = b;
       line(g, hub.x + Math.cos(a), hub.y + Math.sin(a), hub.x + Math.cos(a) + Math.sin(a) * 4, hub.y + Math.sin(a) - Math.cos(a) * 4, PAL.sky1, 1);
-      line(g, hub.x, hub.y, tx, ty, PAL.white, 1);
+      line(g, hub.x, hub.y, b.tx, b.ty, PAL.white, 1);
     }
     rect(g, hub.x - 1, hub.y - 1, 2, 2, PAL.yellow);
     g.drawImage(sheet, k * 100, 0, 100, 80, lx - 50, ROAD - 72, 100, 80);
@@ -1122,7 +1138,8 @@ export function render(kit, slot, scene, params) {
     const flash = rolling > 0 && frame % 2 === 0;
     drawText(g, s, 184 + textWidth('kW ') + 1, HUD.y0 + 10, flash ? PAL.yellow : PAL.white, { shadow: PAL.dgray });
     for (let i = 0; i < 11; i++) {
-      const on = i < passed;
+      const counting = rolling > 0 && i === passed - 1;
+      const on = i < passed && (!counting || frame % 2 === 0);
       const ix = 129 + i * 10;
       const iy = HUD.y0 + 18;
       // tiny turbine pictogram: a "Y" rotor on a tower

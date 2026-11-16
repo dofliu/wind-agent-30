@@ -1,5 +1,5 @@
 // src/scenes/brush.js
-// #09 · 1887–1888 · 第一批發電風機 — The first electric wind turbines.
+// #09 · 1887–1888 · 最早一批發電風機 — Among the earliest electric wind turbines.
 //
 // Medium: the cover of a Victorian popular-science weekly, cut as a WOOD ENGRAVING
 // (end-grain boxwood): cream newsprint, an engraved masthead band, tone built from
@@ -7,13 +7,17 @@
 // darks, cross-hatching on the figures, numbered views and a caption block.
 //
 //   1. "The windmill in the park" (Cleveland, Ohio, 1888) — after the Dec. 1890 account:
-//      a wheel 56 ft in diameter with 144 twisted cedar blades (~1,800 sq ft of sail),
+//      a wheel 56 ft in diameter with 144 twisted wooden blades (~1,800 sq ft of sail),
 //      on a rectangular tapered tower ~60 ft high that turns bodily on a wrought-iron
 //      gudgeon (circular rail at its foot), a tail 60 ft long and 20 ft wide, a small
 //      auxiliary vane on one side (furls the wheel in gales). Inside, a 12 kW dynamo
 //      geared 50 : 1 by belts charges the storage cells in the mansion's basement.
-//   2. Inset: Blyth's cloth-sailed wind engine (tripod, upright windshaft, four arms with
-//      canvas sails) lighting his cottage at Marykirk, Scotland, 1887.
+//   2. Inset: Blyth's wind engine at Marykirk, Scotland, as in the only well-known
+//      photograph (1891): a vertical-axis rotor of drum (half-cylinder) sails on four arms,
+//      braced by timber posts and guy wires, with a corrugated-iron shed. His first, July
+//      1887 cloth-sailed machine is not reliably pictured, so the inset is labelled 1891
+//      and the journal issue is dated December 1891 (after both machines).
+//   Masthead: an invented weekly ("THE WIND DYNAMO"), generic wording, no real title.
 //
 // Gag: the mansion's lamps brighten and dim with the gusts (and the rider's pinwheel);
 // on bar 3 a big gust lifts a gentleman's top hat, which tumbles over the drive and
@@ -715,10 +719,70 @@ function paintWindmillDetails(g) {
   g.stroke();
   poly(g, c.top);
   g.stroke();
+  // --- railed balcony round the lower part of the tower (visible faces + short returns)
+  {
+    const BY = 13;
+    const h = tw(BY) + 2.2;
+    const run = [pr(-h, BY, -h + 0.2), pr(-h, BY, h), pr(h - 0.2, BY, h)];
+    const runR = run.map((p, i) => pr([-h, -h, h - 0.2][i], BY + 3.4, [-h + 0.2, h, h][i]));
+    // floor edge (heavy) with a white-line cut on its lip
+    g.strokeStyle = INK;
+    g.lineWidth = 2.4;
+    poly(g, run, false);
+    g.stroke();
+    g.strokeStyle = paper(0.85);
+    g.lineWidth = 0.8;
+    poly(g, run.map((p) => ({ x: p.x, y: p.y - 1.4 })), false);
+    g.stroke();
+    // hand rail + middle rail
+    g.strokeStyle = INK;
+    g.lineWidth = 1.3;
+    poly(g, runR, false);
+    g.stroke();
+    g.lineWidth = 0.7;
+    poly(g, run.map((p, i) => ({ x: (p.x + runR[i].x) / 2, y: (p.y + runR[i].y) / 2 })), false);
+    g.stroke();
+    // balusters every ~2 ft
+    g.lineWidth = 0.8;
+    for (let s = 0; s < 2; s++) {
+      const a0 = run[s];
+      const a1 = run[s + 1];
+      const b0 = runR[s];
+      const b1 = runR[s + 1];
+      const n = Math.round(Math.hypot(a1.x - a0.x, a1.y - a0.y) / (V.s * 2));
+      for (let i = 0; i <= n; i++) {
+        const u = i / n;
+        line(g, lerpP(a0, a1, u), lerpP(b0, b1, u));
+      }
+    }
+    // brackets under the floor at the corners
+    g.lineWidth = 1.1;
+    for (const [X, Z] of [[-1, -1], [-1, 1], [1, 1]]) {
+      const hb = tw(BY - 4);
+      line(g, pr(X * hb, BY - 4, Z * hb), pr(X * h, BY, Z * h));
+    }
+  }
+  // --- casters at the feet of the corner legs, riding just above the circular rail
+  for (const [X, Z] of [[-HB, -HB], [-HB, HB], [HB, HB]]) {
+    const c = pr(X, 1.25, Z);
+    g.fillStyle = INK;
+    g.fillRect(c.x - 2.6, c.y - 8, 5.2, 4.5);
+    g.beginPath();
+    g.ellipse(c.x, c.y, 4.2, 4.2, 0, 0, TAU);
+    g.fillStyle = PAPER;
+    g.fill();
+    g.lineWidth = 1.4;
+    g.strokeStyle = INK;
+    g.stroke();
+    g.beginPath();
+    g.arc(c.x, c.y, 1.1, 0, TAU);
+    g.fillStyle = INK;
+    g.fill();
+  }
   // --- circular rail at the foot (the whole tower turns on its gudgeon)
   g.strokeStyle = INK;
   g.lineWidth = 2;
-  const railR = 15;
+  const railR = HB * Math.SQRT2;
   g.beginPath();
   for (let k = 0; k <= 72; k++) {
     const a = (k / 72) * TAU;
@@ -900,12 +964,21 @@ function drawWheel(ctx, rot) {
 }
 
 // -----------------------------------------------------------------------------
-// BLYTH INSET (Marykirk, 1887)
+// BLYTH INSET (Marykirk, 1891) — after the only well-known photograph of James Blyth's
+// wind engine (1891; NOT his first, July 1887 machine, whose form is uncertain, so the
+// inset is labelled 1891 and nothing here captions the 1887 machine's axis).
+// A VERTICAL shaft braced by tall rough timber posts and guyed from its mast-top; four
+// long horizontal arms carry large upright curved drum (half-cylinder) sails that catch
+// the wind like cups, so the rotor turns flat, like a merry-go-round. A small
+// corrugated-iron shed at the foot, a lady in a black dress for scale, a flat riverside
+// field with a long many-arched stone bridge behind.
 // -----------------------------------------------------------------------------
 const OV = { cx: 172, cy: 242, rx: 130, ry: 76 };
-// the wind engine: tripod, upright windshaft, four arms carrying canvas sails
-const BL = { x: 236, ground: 298, top: 186, armTop: 196, armBot: 234, arm: 48 };
-const COT = { x0: 70, x1: 150, wall: 272, ground: 298, ridge: 250 };
+// the wind engine: shaft x, ground, mast-top, collar where the posts meet, rotor
+const BL = { x: 196, ground: 301, top: 178, collar: 252, arm: 45, armY: 222, drumH: 30, drumR: 10.5, tilt: 0.3 };
+const SHED = { x0: 234, x1: 268, eave: 285, ridge: 279, ground: 302 };
+const BRIDGE = { deck: 259, spring: 272, water: 281 };
+const LADY = { x: 146, ground: 304 };
 
 function ovalPath(g, grow = 0) {
   g.beginPath();
@@ -929,55 +1002,61 @@ function paintBlythTones(t) {
   sk.addColorStop(1, tone(0.1, 0, 2.0));
   t.fillStyle = sk;
   t.fillRect(OV.cx - OV.rx, OV.cy - OV.ry, OV.rx * 2, OV.ry * 2);
-  // a cloud bank behind the cottage
+  // a cloud bank low on the left
   t.fillStyle = tone(0.04, 0, 2.0);
-  for (const [x, y, rx, ry] of [[96, 216, 40, 9], [130, 208, 32, 11], [74, 226, 30, 6], [300, 236, 26, 6]]) {
+  for (const [x, y, rx, ry] of [[86, 222, 36, 8], [118, 214, 28, 9], [70, 232, 26, 6], [284, 214, 24, 6]]) {
     t.beginPath();
     t.ellipse(x, y, rx, ry, 0, 0, TAU);
     t.fill();
   }
-  // foothills of the Mearns
-  t.fillStyle = tone(0.48, 8, 1.9);
+  // far bank of the North Esk (low hills)
+  t.fillStyle = tone(0.36, 8, 1.9);
   t.beginPath();
-  t.moveTo(OV.cx - OV.rx, 286);
-  t.bezierCurveTo(80, 262, 130, 268, 170, 276);
-  t.bezierCurveTo(210, 270, 270, 256, OV.cx + OV.rx, 276);
-  t.lineTo(OV.cx + OV.rx, 340);
-  t.lineTo(OV.cx - OV.rx, 340);
+  t.moveTo(OV.cx - OV.rx, 262);
+  t.bezierCurveTo(90, 248, 150, 252, 190, 256);
+  t.bezierCurveTo(230, 250, 280, 246, OV.cx + OV.rx, 256);
+  t.lineTo(OV.cx + OV.rx, 290);
+  t.lineTo(OV.cx - OV.rx, 290);
   t.closePath();
   t.fill();
-  // garden
-  t.fillStyle = tone(0.34, 0, 2.4);
-  t.fillRect(OV.cx - OV.rx, 296, OV.rx * 2, 40);
-  // cottage: whitewashed walls, slate roof, shaded gable end
-  t.fillStyle = tone(0.1, 0, 2.0);
-  t.fillRect(COT.x0, COT.wall, COT.x1 - COT.x0, COT.ground - COT.wall);
-  t.fillStyle = tone(0.5, 90, 1.9);
+  // the long many-arched stone bridge across the river
+  t.fillStyle = tone(0.6, 0, 1.8);
+  t.fillRect(OV.cx - OV.rx, BRIDGE.deck, OV.rx * 2, BRIDGE.water - BRIDGE.deck);
+  t.fillStyle = tone(0.92, 0, 1.7);
+  for (const ax of bridgeArches()) {
+    t.beginPath();
+    t.moveTo(ax - 13, BRIDGE.water);
+    t.lineTo(ax - 13, BRIDGE.spring);
+    t.ellipse(ax, BRIDGE.spring, 13, 8, 0, Math.PI, TAU);
+    t.lineTo(ax + 13, BRIDGE.water);
+    t.closePath();
+    t.fill();
+  }
+  // the river, catching the light
+  t.fillStyle = tone(0.16, 0, 2.2);
+  t.fillRect(OV.cx - OV.rx, BRIDGE.water, OV.rx * 2, 6);
+  // the flat riverside field
+  t.fillStyle = tone(0.32, 0, 2.4);
+  t.fillRect(OV.cx - OV.rx, BRIDGE.water + 6, OV.rx * 2, 60);
+  // corrugated-iron shed: lit wall + shaded gable, dark doorway
+  t.fillStyle = tone(0.2, 90, 1.6);
+  t.fillRect(SHED.x0, SHED.eave, SHED.x1 - SHED.x0 - 9, SHED.ground - SHED.eave);
+  t.fillStyle = tone(0.62, 90, 1.6);
+  t.fillRect(SHED.x1 - 9, SHED.eave, 9, SHED.ground - SHED.eave);
+  t.fillStyle = tone(0.5, 0, 1.7);
   t.beginPath();
-  t.moveTo(COT.x1, COT.ground);
-  t.lineTo(COT.x1, COT.wall);
-  t.lineTo(COT.x1 + 11, COT.ridge + 4);
-  t.lineTo(COT.x1 + 22, COT.wall);
-  t.lineTo(COT.x1 + 22, COT.ground);
+  t.moveTo(SHED.x0 - 2, SHED.eave + 1);
+  t.lineTo(SHED.x0 + 3, SHED.ridge);
+  t.lineTo(SHED.x1 - 5, SHED.ridge);
+  t.lineTo(SHED.x1 + 1, SHED.eave + 1);
   t.closePath();
   t.fill();
-  t.fillStyle = tone(0.84, 160, 1.9);
-  t.beginPath();
-  t.moveTo(COT.x0 - 6, COT.wall + 1);
-  t.lineTo(COT.x0 + 8, COT.ridge);
-  t.lineTo(COT.x1 + 11, COT.ridge);
-  t.lineTo(COT.x1 + 2, COT.wall + 1);
-  t.closePath();
-  t.fill();
-  // chimneys
-  t.fillStyle = tone(0.62, 90, 1.9);
-  t.fillRect(COT.x0 + 6, COT.ridge - 11, 8, 13);
-  t.fillRect(COT.x1 + 7, COT.ridge - 9, 8, 11);
-  // windows + door (dark)
-  t.fillStyle = tone(0.97, 0, 1.8);
-  for (const x of [80, 124]) t.fillRect(x, 279, 10, 11);
-  t.fillRect(102, 277, 10, 21);
   t.restore();
+}
+function bridgeArches() {
+  const out = [];
+  for (let x = 54; x < 300; x += 31) out.push(x);
+  return out;
 }
 
 function paintBlythDetails(g, rng) {
@@ -994,18 +1073,25 @@ function paintBlythDetails(g, rng) {
   g.save();
   ovalPath(g, -1);
   g.clip();
-  // cottage outlines
+  // bridge: parapet line, deck string-course, arch rings, cutwaters
   g.strokeStyle = INK;
-  g.lineWidth = 1.1;
-  g.strokeRect(COT.x0, COT.wall, COT.x1 - COT.x0, COT.ground - COT.wall);
-  g.beginPath();
-  g.moveTo(COT.x0 - 6, COT.wall + 1);
-  g.lineTo(COT.x0 + 8, COT.ridge);
-  g.lineTo(COT.x1 + 11, COT.ridge);
-  g.lineTo(COT.x1 + 22, COT.wall);
-  g.lineTo(COT.x1 + 22, COT.ground);
-  g.stroke();
-  // garden wall and grass ticks
+  g.lineWidth = 0.9;
+  line(g, { x: OV.cx - OV.rx, y: BRIDGE.deck }, { x: OV.cx + OV.rx, y: BRIDGE.deck });
+  g.lineWidth = 0.6;
+  line(g, { x: OV.cx - OV.rx, y: BRIDGE.deck + 3 }, { x: OV.cx + OV.rx, y: BRIDGE.deck + 3 });
+  for (const ax of bridgeArches()) {
+    g.beginPath();
+    g.ellipse(ax, BRIDGE.spring, 13, 8, 0, Math.PI, TAU);
+    g.stroke();
+    // pier cutwater between arches
+    const px = ax + 15.5;
+    g.beginPath();
+    g.moveTo(px - 2, BRIDGE.water);
+    g.lineTo(px, BRIDGE.spring - 2);
+    g.lineTo(px + 2, BRIDGE.water);
+    g.stroke();
+  }
+  // grass ticks in the field
   g.lineWidth = 0.7;
   for (let x = OV.cx - OV.rx; x < OV.cx + OV.rx; x += 3 + rng() * 3) {
     g.beginPath();
@@ -1013,33 +1099,99 @@ function paintBlythDetails(g, rng) {
     g.lineTo(x + 1, 296 + rng() * 14);
     g.stroke();
   }
-  // tripod: three legs braced to the upright windshaft
+  // guy wires from the mast-top to the ground (behind everything else)
+  g.lineWidth = 0.55;
+  g.strokeStyle = ink(0.8);
+  for (const [gx, gy] of [[84, 306], [314, 300], [236, 292], [150, 292]]) {
+    line(g, { x: BL.x, y: BL.top + 2 }, { x: gx, y: gy });
+  }
+  // tall rough timber posts bracing the shaft (back pair lighter, front pair heavy)
   g.strokeStyle = INK;
-  const apex = { x: BL.x, y: BL.armBot + 10 };
-  g.lineWidth = 2;
-  line(g, apex, { x: BL.x - 34, y: BL.ground });
-  line(g, apex, { x: BL.x + 32, y: BL.ground + 1 });
-  g.lineWidth = 1.3;
-  line(g, apex, { x: BL.x + 7, y: BL.ground - 7 });
-  g.lineWidth = 0.8;
-  line(g, { x: BL.x - 22, y: 280 }, { x: BL.x + 21, y: 280 });
-  line(g, { x: BL.x - 22, y: 280 }, { x: BL.x + 7, y: BL.ground - 7 });
-  // windshaft, foot bearing, rope drive to the dynamo in the lean-to
-  g.lineWidth = 2.2;
-  line(g, { x: BL.x, y: BL.ground }, { x: BL.x, y: BL.top });
+  const posts = [
+    [-17, BL.ground - 6, 1.3],
+    [19, BL.ground - 5, 1.3],
+    [-31, BL.ground + 1, 2.6],
+    [33, BL.ground + 1, 2.6],
+  ];
+  for (const [dx, gy, w] of posts) {
+    g.lineWidth = w;
+    line(g, { x: BL.x + dx * 0.12, y: BL.collar }, { x: BL.x + dx, y: gy });
+    // white-line cut down the lit side of the heavy posts
+    if (w > 2) {
+      g.strokeStyle = paper(0.85);
+      g.lineWidth = 0.6;
+      line(g, { x: BL.x + dx * 0.12 - 0.8, y: BL.collar + 4 }, { x: BL.x + dx - 1.2, y: gy - 2 });
+      g.strokeStyle = INK;
+    }
+  }
+  // cross-ties between the front posts
+  g.lineWidth = 1;
+  for (const f of [0.45, 0.8]) {
+    const y = lerp(BL.collar, BL.ground, f);
+    const hw = lerp(3.7, 32, f);
+    line(g, { x: BL.x - hw, y }, { x: BL.x + hw, y });
+  }
+  line(g, { x: BL.x - lerp(3.7, 32, 0.45), y: lerp(BL.collar, BL.ground, 0.45) }, { x: BL.x + lerp(3.7, 32, 0.8), y: lerp(BL.collar, BL.ground, 0.8) });
+  // collar block + foot bearing
   g.fillStyle = INK;
-  g.fillRect(BL.x - 4, BL.ground - 6, 8, 6);
-  g.fillRect(BL.x + 16, BL.ground - 11, 16, 11);
-  g.strokeStyle = paper(0.9);
-  g.lineWidth = 0.7;
-  g.strokeRect(BL.x + 18, BL.ground - 9, 6, 5);
-  g.strokeStyle = INK;
-  g.lineWidth = 0.6;
-  // wire to the cottage (accumulators charged within)
+  g.fillRect(BL.x - 4, BL.collar - 3, 8, 6);
+  g.fillRect(BL.x - 3.5, BL.ground - 6, 7, 6);
+  // the vertical shaft below the rotor and the mast above it
+  g.lineWidth = 2.4;
+  line(g, { x: BL.x, y: BL.ground - 4 }, { x: BL.x, y: BL.collar });
+  // shed: corrugations, roof, door, a little window (it glows with the charge)
+  g.lineWidth = 0.9;
+  g.strokeRect(SHED.x0, SHED.eave, SHED.x1 - SHED.x0, SHED.ground - SHED.eave);
   g.beginPath();
-  g.moveTo(BL.x + 20, BL.ground - 11);
-  g.quadraticCurveTo(190, 262, COT.x1 + 18, COT.wall - 6);
+  g.moveTo(SHED.x0 - 2, SHED.eave + 1);
+  g.lineTo(SHED.x0 + 3, SHED.ridge);
+  g.lineTo(SHED.x1 - 5, SHED.ridge);
+  g.lineTo(SHED.x1 + 1, SHED.eave + 1);
+  g.closePath();
   g.stroke();
+  g.lineWidth = 0.45;
+  g.beginPath();
+  for (let x = SHED.x0 + 2; x < SHED.x1 - 1; x += 2) {
+    g.moveTo(x, SHED.eave + 1);
+    g.lineTo(x, SHED.ground);
+  }
+  g.stroke();
+  g.fillStyle = INK;
+  g.fillRect(SHED.x0 + 4, SHED.eave + 4, 7, SHED.ground - SHED.eave - 4);
+  g.fillRect(SHED.x0 + 15, SHED.eave + 4, 7, 6);
+  // cable from the shed to the shaft foot (the dynamo is driven from the shaft)
+  g.lineWidth = 0.6;
+  g.beginPath();
+  g.moveTo(BL.x + 3, BL.ground - 3);
+  g.quadraticCurveTo(BL.x + 20, BL.ground + 1, SHED.x0, SHED.ground - 4);
+  g.stroke();
+  // the lady in a black dress (for scale): hat, bodice, bell skirt, white-line folds
+  {
+    const x = 0;
+    const gy = 0;
+    g.save();
+    g.translate(LADY.x, LADY.ground);
+    g.scale(1.25, 1.25);
+    g.fillStyle = INK;
+    g.beginPath();
+    g.moveTo(x - 2.6, gy - 13);
+    g.lineTo(x + 2.6, gy - 13);
+    g.quadraticCurveTo(x + 7.5, gy - 4, x + 7.2, gy);
+    g.lineTo(x - 6.4, gy);
+    g.quadraticCurveTo(x - 6.8, gy - 5, x - 2.6, gy - 13);
+    g.closePath();
+    g.fill();
+    g.fillRect(x - 2.2, gy - 20, 4.4, 8);
+    g.beginPath();
+    g.arc(x, gy - 22.6, 2.4, 0, TAU);
+    g.fill();
+    g.fillRect(x - 3.4, gy - 25.6, 6.8, 1.4);
+    g.fillRect(x - 1.6, gy - 27.6, 3.2, 2.4);
+    g.strokeStyle = paper(0.7);
+    g.lineWidth = 0.5;
+    for (const dx of [-2.5, 0.5, 3.5]) line(g, { x: x + dx * 0.4, y: gy - 11 }, { x: x + dx, y: gy - 1 });
+    g.restore();
+  }
   g.restore();
   // cartouche label
   const lx = OV.cx;
@@ -1071,113 +1223,146 @@ function paintBlythDetails(g, rng) {
   g.font = 'italic 400 15px "IM Fell English", Georgia, serif';
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.fillText('Marykirk, 1887.', lx, ly + 1);
+  g.fillText('Marykirk, 1891.', lx, ly + 1);
   g.restore();
+}
+
+/** One upright half-cylinder (drum) sail at the end of an arm, seen a little from above. */
+function drumSail(ctx, ang) {
+  const { x: cx, armY, arm: R, drumH: H, drumR: rd, tilt: k } = BL;
+  const ux = Math.cos(ang);
+  const uz = Math.sin(ang);
+  // direction of motion: the drum's convex back leads, its open mouth trails (catching the wind)
+  const tx = -uz;
+  const tz = ux;
+  const CX = R * ux;
+  const CZ = R * uz;
+  const N = 12;
+  const top = [];
+  const bot = [];
+  for (let i = 0; i <= N; i++) {
+    const th = (i / N) * Math.PI;
+    const X = CX + rd * (Math.cos(th) * ux + Math.sin(th) * tx);
+    const Z = CZ + rd * (Math.cos(th) * uz + Math.sin(th) * tz);
+    top.push({ x: cx + X, y: armY - H / 2 + Z * k });
+    bot.push({ x: cx + X, y: armY + H / 2 + Z * k });
+  }
+  // arms (top and bottom of the drum) back to the shaft, with a diagonal stay
+  const ay0 = armY - H / 2 + 3;
+  const ay1 = armY + H / 2 - 3;
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(cx, ay0);
+  ctx.lineTo(cx + CX, ay0 + CZ * k);
+  ctx.moveTo(cx, ay1);
+  ctx.lineTo(cx + CX, ay1 + CZ * k);
+  ctx.stroke();
+  ctx.lineWidth = 0.7;
+  ctx.beginPath();
+  ctx.moveTo(cx, ay1);
+  ctx.lineTo(cx + CX * 0.92, ay0 + CZ * k * 0.92);
+  ctx.stroke();
+  const shape = () => {
+    ctx.beginPath();
+    ctx.moveTo(top[0].x, top[0].y);
+    for (let i = 1; i <= N; i++) ctx.lineTo(top[i].x, top[i].y);
+    for (let i = N; i >= 0; i--) ctx.lineTo(bot[i].x, bot[i].y);
+    ctx.closePath();
+  };
+  // looking into the open mouth (concave side faces -t) or at the convex back?
+  const mouth = -tz; // >0: the mouth faces us
+  shape();
+  ctx.fillStyle = mouth > 0 ? '#6d6455' : PAPER;
+  ctx.fill();
+  // engraved vertical rules: hollow inside dark, curved back graded towards its shaded flank
+  ctx.beginPath();
+  for (let i = 1; i < N; i++) {
+    const th = (i / N) * Math.PI;
+    const nx = Math.cos(th) * ux + Math.sin(th) * tx; // outward normal, x part (light from the left)
+    const dark = mouth > 0 ? 0.5 + 0.4 * Math.sin(th) : clamp01(0.15 + 0.75 * nx);
+    if (dark < 0.3) continue;
+    ctx.moveTo(top[i].x, top[i].y + 1.2);
+    ctx.lineTo(bot[i].x, bot[i].y - 1.2);
+  }
+  ctx.strokeStyle = ink(mouth > 0 ? 0.9 : 0.6);
+  ctx.lineWidth = mouth > 0 ? 0.8 : 0.55;
+  ctx.stroke();
+  shape();
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  // the curved top rim we look down on (the "cup" reads from it); white-line cut on its lip
+  ctx.beginPath();
+  ctx.moveTo(top[0].x, top[0].y);
+  for (let i = 1; i <= N; i++) ctx.lineTo(top[i].x, top[i].y);
+  ctx.lineWidth = 1.1;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(top[0].x, top[0].y);
+  ctx.lineTo(top[N].x, top[N].y);
+  ctx.lineWidth = 0.6;
+  ctx.stroke();
+  if (mouth > 0) {
+    ctx.beginPath();
+    ctx.moveTo(top[1].x, top[1].y + 1);
+    for (let i = 2; i < N; i++) ctx.lineTo(top[i].x, top[i].y + 1);
+    ctx.strokeStyle = paper(0.8);
+    ctx.lineWidth = 0.6;
+    ctx.stroke();
+  }
 }
 
 function drawBlythDynamic(ctx, T, bri) {
   ctx.save();
   ovalPath(ctx, -1);
   ctx.clip();
-  // four arms (upper and lower) carrying canvas sails, turning about the upright shaft;
-  // seen a little from above, so the arms sweep an ellipse
-  const ang = 1.9 * windInt(T) + 0.4;
-  const R = BL.arm;
-  const tilt = 9;
-  const rin = 0.36;
-  const sails = [];
+  // a slow drag rotor turning flat about the upright shaft (merry-go-round)
+  const ang0 = 1.35 * windInt(T) + 0.5;
+  const drums = [];
   for (let k = 0; k < 4; k++) {
-    const a = ang + (k * Math.PI) / 2;
-    sails.push({ a, z: Math.sin(a) });
+    const a = ang0 + (k * Math.PI) / 2;
+    drums.push({ a, z: Math.sin(a) });
   }
-  sails.sort((p, q) => p.z - q.z);
-  // faint path of the arm tips (engraver's motion line), far half first
-  ctx.strokeStyle = ink(0.35);
+  drums.sort((p, q) => p.z - q.z);
+  // faint ellipse swept by the drums (engraver's motion line), far half
+  ctx.strokeStyle = ink(0.3);
   ctx.lineWidth = 0.6;
   ctx.setLineDash([2, 3]);
   ctx.beginPath();
-  ctx.ellipse(BL.x, BL.armTop, R, tilt, 0, Math.PI, TAU);
+  ctx.ellipse(BL.x, BL.armY - BL.drumH / 2 + 3, BL.arm, BL.arm * BL.tilt, 0, Math.PI, TAU);
   ctx.stroke();
   ctx.setLineDash([]);
-  for (const sl of sails) {
-    const ca = Math.cos(sl.a);
-    const sa = Math.sin(sl.a);
-    const xo = BL.x + ca * R;
-    const xi = BL.x + ca * R * rin;
-    const dyo = sa * tilt;
-    const dyi = sa * tilt * rin;
-    const yT = BL.armTop;
-    const yB = BL.armBot;
-    // arms
-    ctx.strokeStyle = INK;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(BL.x, yT);
-    ctx.lineTo(xo, yT + dyo);
-    ctx.moveTo(BL.x, yB);
-    ctx.lineTo(xo, yB + dyo);
-    ctx.stroke();
-    // canvas: radial plane, bellied to leeward (tangential, seen as a sideways bulge)
-    const bx = -sa * 6;
-    const by = ca * 1.5;
-    const near = sl.z > -0.05;
-    ctx.fillStyle = near ? PAPER : '#d3c9b2';
-    ctx.beginPath();
-    ctx.moveTo(xi, yT + dyi + 1);
-    ctx.lineTo(xo, yT + dyo + 1);
-    ctx.quadraticCurveTo(xo + bx, (yT + yB) / 2 + dyo + by, xo, yB + dyo - 1);
-    ctx.lineTo(xi, yB + dyi - 1);
-    ctx.quadraticCurveTo(xi + bx * 0.4, (yT + yB) / 2 + dyi, xi, yT + dyi + 1);
-    ctx.closePath();
-    ctx.fill();
-    ctx.lineWidth = 1;
-    ctx.stroke();
-    // engraved shading: sails turned away (or edge-on) are ruled; lit ones show seams
-    const edge = Math.abs(ca) < 0.4;
-    ctx.lineWidth = !near || edge ? 0.6 : 0.45;
-    ctx.beginPath();
-    const rows = !near || edge ? 9 : 3;
-    for (let k = 1; k < rows; k++) {
-      const u = k / rows;
-      const y0 = yT + (yB - yT) * u;
-      const bul = 4 * u * (1 - u);
-      ctx.moveTo(xi + bx * 0.4 * bul, y0 + dyi);
-      ctx.lineTo(xo + bx * bul, y0 + dyo + by * bul);
-    }
-    ctx.stroke();
-  }
-  // shaft head
-  ctx.fillStyle = INK;
-  ctx.fillRect(BL.x - 2.5, BL.top - 2, 5, 7);
+  // far drums, then the mast through the rotor, then the near drums
+  for (const d of drums) if (d.z < 0) drumSail(ctx, d.a);
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 2.4;
   ctx.beginPath();
-  ctx.moveTo(BL.x - 3, BL.top - 2);
-  ctx.lineTo(BL.x, BL.top - 7);
-  ctx.lineTo(BL.x + 3, BL.top - 2);
-  ctx.fill();
-  // cottage windows glow with the charge
+  ctx.moveTo(BL.x, BL.top);
+  ctx.lineTo(BL.x, BL.collar);
+  ctx.stroke();
+  ctx.fillStyle = INK;
+  ctx.fillRect(BL.x - 3, BL.top - 3, 6, 6);
+  ctx.fillRect(BL.x - 3.5, BL.armY - BL.drumH / 2, 7, BL.drumH);
+  for (const d of drums) if (d.z >= 0) drumSail(ctx, d.a);
+  // the shed window glows with the charge
   if (bri > 0.04) {
+    const wx = SHED.x0 + 15;
+    const wy = SHED.eave + 4;
     ctx.globalAlpha = clamp01(bri * 1.4);
     ctx.fillStyle = PAPER;
-    for (const x of [80, 124]) ctx.fillRect(x, 279, 10, 11);
+    ctx.fillRect(wx, wy, 7, 6);
     ctx.strokeStyle = INK;
-    ctx.lineWidth = 0.8;
-    for (const x of [80, 124]) {
-      ctx.strokeRect(x, 279, 10, 11);
-      ctx.beginPath();
-      ctx.moveTo(x + 5, 279);
-      ctx.lineTo(x + 5, 290);
-      ctx.stroke();
-    }
+    ctx.lineWidth = 0.7;
+    ctx.strokeRect(wx, wy, 7, 6);
     ctx.globalAlpha = clamp01(bri);
     ctx.strokeStyle = paper(0.85);
-    ctx.lineWidth = 0.8;
+    ctx.lineWidth = 0.7;
     ctx.beginPath();
-    for (const x of [85, 129]) {
-      for (let k = 0; k < 10; k++) {
-        const a = (k / 10) * TAU + 0.3;
-        ctx.moveTo(x + Math.cos(a) * 9, 284.5 + Math.sin(a) * 9);
-        ctx.lineTo(x + Math.cos(a) * 15, 284.5 + Math.sin(a) * 15);
-      }
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * TAU + 0.3;
+      ctx.moveTo(wx + 3.5 + Math.cos(a) * 6, wy + 3 + Math.sin(a) * 6);
+      ctx.lineTo(wx + 3.5 + Math.cos(a) * 10, wy + 3 + Math.sin(a) * 10);
     }
     ctx.stroke();
     ctx.globalAlpha = 1;
@@ -1884,7 +2069,7 @@ function paintMasthead(g) {
   g.font = '400 12px "IM Fell English", Georgia, serif';
   g.textBaseline = 'alphabetic';
   g.textAlign = 'left';
-  spacedText(g, 'VOL. LIX.—No. 25.', x0 + 2, 56, 0.8, 'left');
+  spacedText(g, 'VOL. LXV.—No. 25.', x0 + 2, 56, 0.8, 'left');
   g.textAlign = 'right';
   spacedText(g, '[PRICE TEN CENTS.]', x1 - 2, 56, 0.8, 'right');
   g.font = 'italic 400 12.5px "IM Fell English", Georgia, serif';
@@ -1942,7 +2127,8 @@ function paintMasthead(g) {
   g.fillText('Cleveland, Ohio · 1888', 500, 134);
   g.font = '400 11px "IM Fell English", Georgia, serif';
   g.textAlign = 'left';
-  g.fillText('NEW YORK, DECEMBER 22, 1888.', x0 + 2, 145);
+  // issue dated after both machines it pictures (Brush 1888, Blyth's 1891 photograph)
+  g.fillText('NEW YORK, DECEMBER 19, 1891.', x0 + 2, 145);
   g.textAlign = 'right';
   g.fillText('$3.00 A YEAR.', x1 - 2, 145);
   g.restore();

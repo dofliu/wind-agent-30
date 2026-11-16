@@ -1316,7 +1316,8 @@ function bakeRowboat(kit) {
     g.restore();
     // the lowered pole mast rests on a tall forked crutch aft and a post forward,
     // with the sail furled between yard and boom and lashed to it
-    for (const [x, h] of [[46, -124], [324, -74]]) {
+    // (kept low: the bundle must stay under the register line / road at y = 712)
+    for (const [x, h] of [[46, -100], [324, -70]]) {
       g.beginPath();
       g.moveTo(x, -18);
       g.lineTo(x, h);
@@ -1335,8 +1336,8 @@ function bakeRowboat(kit) {
       g.stroke();
     }
     g.beginPath();
-    g.moveTo(18, -130);
-    g.lineTo(334, -69);
+    g.moveTo(18, -105);
+    g.lineTo(334, -66);
     g.strokeStyle = C.ink;
     g.lineWidth = 7;
     g.stroke();
@@ -1344,7 +1345,7 @@ function bakeRowboat(kit) {
     g.lineWidth = 4.4;
     g.stroke();
     g.beginPath();
-    const my = (x) => -130 + ((x - 18) / 332) * 64;
+    const my = (x) => -105 + ((x - 18) / 316) * 39;
     g.beginPath();
     g.moveTo(66, my(66) - 9);
     g.bezierCurveTo(140, my(140) - 14, 230, my(230) - 12, 300, my(300) - 6);

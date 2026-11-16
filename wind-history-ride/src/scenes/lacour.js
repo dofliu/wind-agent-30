@@ -8,16 +8,19 @@
 //
 //   * The 1891 experimental mill built for la Cour by millwright N. J. Poulsen: the
 //     standard four-sailed Danish/Dutch rotor on a slim tapering timber trestle tower that
-//     rises out of a tarred plank shed (vertical spindle down to the DC dynamo inside), a
-//     gallery with railing half way up, a ladder, a small cap with a fan-tail, and sails
+//     rises out of a tarred plank dynamo house (vertical spindle down to the DC dynamo
+//     inside), a railed gallery on top of the house (as in the 1891 photographs), a ladder,
+//     a small cap with a fan-tail, and sails
 //     with wooden shutters (the canvas sails were soon replaced by shutters). The sails turn
 //     anticlockwise seen from the front, the lattice on the trailing side.
 //   * The larger building beside it held the electrolysis vessels; two gas holders sunk in
 //     the ground stored hydrogen and oxygen (2 : 1 by volume), piped 300 m to the folk high
 //     school (the thatched, whitewashed buildings on the left) to light its lamps.
-//   * Foreground: a teaching table with a small wooden wind-tunnel box (fan at the back,
-//     tiny four-sailed model rotor inside its mouth), a water voltameter (H and O tubes) and
-//     a hydrogen lamp; a student of the "wind electricians" takes notes.
+//   * Foreground: a teaching table with a small drum-shaped wooden wind tunnel (la Cour's
+//     tunnels, 1896–1900, were horizontal drums; fan at the back, a tiny four-sailed model
+//     rotor on its stand at the mouth), a water voltameter (H and O tubes) and
+//     a hydrogen lamp; an Askov folk-high-school student takes notes (the "wind
+//     electrician" courses only began in 1904). The inscription "Askov 1891" dates the lab.
 //
 // Story beat (bar 3, localT 4–6 s): a gust. The sails speed up, the bubbles in the
 // electrolysis jar surge, the hydrogen bell rises, the lamp flares brighter, the school
@@ -352,7 +355,7 @@ function tp(u, sx, sz) {
   const h = TWR.hb + (TWR.ht - TWR.hb) * u;
   return proj(TWR.cx, y, sx * h, sz * h);
 }
-const GAL_U = 0.355;
+const GAL_U = 0.125; // gallery sits just above the dynamo-house ridge (y ≈ 550)
 const GAL_Y = TWR.yb + (TWR.yt - TWR.yb) * GAL_U;
 const GAL_H = 64;
 function galPt(sx, sz, up = 0) {
@@ -774,7 +777,7 @@ function paintBigTree(g, rng, kit) {
   });
 }
 function paintTower(g, rng) {
-  const levels = [0, 0.18, GAL_U, 0.53, 0.7, 0.85, 1];
+  const levels = [0, GAL_U, 0.29, 0.44, 0.58, 0.71, 0.82, 0.92, 1];
   const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
   const faces = [];
   for (let i = 0; i < 4; i++) {
@@ -1502,7 +1505,7 @@ function painterlyPass(g, rng, w, h, angleFn, layers) {
 const SHED_POLY = [[576, 653], [590, 657], [794, 657], [794, 601], [800, 603], [790, 557], [583, 557], [576, 598]];
 
 function getBackground(kit) {
-  return kit.bake('lacour_bg_v13', S, S, (g, rng) => {
+  return kit.bake('lacour_bg_v14', S, S, (g, rng) => {
     g.lineCap = 'round';
     g.lineJoin = 'round';
     // 1. masses
@@ -1779,7 +1782,22 @@ function paintTable(g, rng) {
 }
 
 function paintTunnel(g, rng) {
+  // la Cour's wind tunnels (1896–1900) were horizontal wooden DRUMS with the fan inside;
+  // this is a small one on the teaching table, seen obliquely: mouth facing the viewer,
+  // the drum running back to the left.
   const { fx0, fx1, fy0, fy1, dx, dy } = TUN;
+  const R = (fx1 - fx0) / 2;
+  const cf = { x: (fx0 + fx1) / 2, y: (fy0 + fy1) / 2 };
+  const cb = { x: cf.x + dx, y: cf.y + dy };
+  const dl = Math.hypot(dx, dy);
+  const ux = dx / dl;
+  const uy = dy / dl;
+  // unit normal pointing "up" (perpendicular to the drum axis on screen)
+  const nx = uy;
+  const ny = -ux;
+  const nUp = ny < 0 ? { x: nx, y: ny } : { x: -nx, y: -ny };
+  const aUp = Math.atan2(nUp.y, nUp.x);
+  const circ = (c, r, a) => [c.x + Math.cos(a) * r, c.y + Math.sin(a) * r];
   // little electromotor + belt at the back
   g.fillStyle = css(hx('#3e4a40'));
   g.beginPath();
@@ -1791,60 +1809,95 @@ function paintTunnel(g, rng) {
   g.fill();
   g.fillStyle = 'rgba(255,240,200,0.35)';
   g.fillRect(74, 787, 20, 2);
-  // fan drum behind the box
-  g.fillStyle = css(mixc(C.dealDark, C.tar, 0.25));
+  // fan housing flange at the back end of the drum
+  g.fillStyle = css(mixc(C.dealDark, C.tar, 0.35));
   g.beginPath();
-  g.ellipse(fx0 + dx + 6, (fy0 + fy1) / 2 + dy + 2, 10, 38, 0, 0, TAU);
+  g.arc(cb.x, cb.y, R + 3, 0, TAU);
   g.fill();
-  // left side face (lit) and top
-  const side = [[fx0, fy0], [fx0 + dx, fy0 + dy], [fx0 + dx, fy1 + dy], [fx0, fy1]];
-  paintPoly(g, rng, side, mixc(C.deal, C.dealLit, 0.3), 260, {
-    color: (x, y, r) => jit(mixc(C.deal, C.dealLit, 0.45), r, 9), angle: () => Math.atan2(dy, dx), angJit: 0.06, len: [10, 28], w: [1.5, 3.5], alpha: [0.45, 0.85],
+  // drum body: hull of the back and front circles (staves run along the axis)
+  const hull = [];
+  for (let k = 0; k <= 16; k++) hull.push(circ(cb, R, aUp - (k / 16) * Math.PI));
+  for (let k = 0; k <= 16; k++) hull.push(circ(cf, R, aUp + Math.PI - (k / 16) * Math.PI));
+  const across = (x, y) => ((x - cf.x) * nUp.x + (y - cf.y) * nUp.y) / R; // +1 top .. -1 bottom
+  paintPoly(g, rng, hull, mixc(C.deal, C.dealDark, 0.25), 420, {
+    color: (x, y, r) => {
+      const v = clamp01(0.5 + 0.5 * across(x, y));
+      let c = mixc(C.dealDark, C.dealLit, 0.15 + 0.75 * Math.pow(v, 0.8));
+      c = mixc(c, C.glow, 0.18 * v);
+      return jit(c, r, 8);
+    },
+    angle: () => Math.atan2(dy, dx),
+    angJit: 0.04,
+    len: [10, 26],
+    w: [1.5, 3.2],
+    alpha: [0.45, 0.85],
   });
-  g.strokeStyle = 'rgba(110,80,50,0.45)';
-  g.lineWidth = 0.9;
-  for (let k = 1; k < 5; k++) {
-    const y0 = lerp(fy0, fy1, k / 5);
+  // stave joints (on the visible, back-left facing half of the drum)
+  g.strokeStyle = 'rgba(95,68,42,0.4)';
+  g.lineWidth = 0.8;
+  for (let k = 1; k < 6; k++) {
+    const a = aUp - (k / 6) * Math.PI;
+    const [x0, y0] = circ(cf, R, a);
     g.beginPath();
-    g.moveTo(fx0, y0);
-    g.lineTo(fx0 + dx, y0 + dy);
+    g.moveTo(x0, y0);
+    g.lineTo(x0 + dx, y0 + dy);
     g.stroke();
   }
-  const top = [[fx0, fy0], [fx1, fy0], [fx1 + dx, fy0 + dy], [fx0 + dx, fy0 + dy]];
-  paintPoly(g, rng, top, mixc(C.dealLit, C.glow, 0.3), 120, {
-    color: (x, y, r) => jit(mixc(C.dealLit, C.glow, 0.3), r, 8), angle: () => Math.atan2(dy, dx), angJit: 0.05, len: [10, 24], w: [1.5, 3], alpha: [0.45, 0.85],
-  });
-  // front frame (the mouth)
-  const frame = [[fx0, fy0], [fx1, fy0], [fx1, fy1], [fx0, fy1]];
-  paintPoly(g, rng, frame, mixc(C.deal, C.dealDark, 0.35), 120, {
-    color: (x, y, r) => jit(mixc(C.deal, C.dealDark, 0.3), r, 8), angle: () => Math.PI / 2, len: [6, 14], w: [1.5, 3], alpha: [0.45, 0.85],
-  });
-  // dark interior with the fan glimpsed at the back
-  const ix0 = fx0 + 6;
-  const iy0 = fy0 + 6;
-  const iw = fx1 - fx0 - 12;
-  const ih = fy1 - fy0 - 12;
-  const ig = g.createLinearGradient(ix0, iy0, ix0 + iw, iy0 + ih);
-  ig.addColorStop(0, '#1d1611');
-  ig.addColorStop(1, '#3a2a1d');
-  g.fillStyle = ig;
-  g.fillRect(ix0, iy0, iw, ih);
-  g.strokeStyle = 'rgba(150,120,80,0.25)';
-  g.lineWidth = 1;
+  // iron hoops (the half of each ring on the visible, back-left facing side)
+  for (const f of [0.14, 0.52, 0.88]) {
+    const c = { x: cf.x + dx * f, y: cf.y + dy * f };
+    g.strokeStyle = css(C.iron, 0.85);
+    g.lineWidth = 2.2;
+    g.beginPath();
+    g.arc(c.x, c.y, R + 0.6, aUp, aUp + Math.PI, true);
+    g.stroke();
+    g.strokeStyle = css(C.ironLit, 0.5);
+    g.lineWidth = 0.8;
+    g.beginPath();
+    g.arc(c.x - 0.6, c.y - 0.6, R + 0.4, aUp, aUp - Math.PI * 0.45, true);
+    g.stroke();
+  }
+  // the mouth: end-grain rim, then the dark bore with the fan glimpsed deep inside
+  g.fillStyle = css(mixc(C.dealLit, C.glow, 0.25));
   g.beginPath();
-  g.moveTo(ix0, iy0);
-  g.lineTo(ix0 + dx * 0.35 + 6, iy0 + dy * 0.35 + 4);
-  g.moveTo(ix0, iy0 + ih);
-  g.lineTo(ix0 + dx * 0.35 + 6, iy0 + ih + dy * 0.35 - 4);
+  g.arc(cf.x, cf.y, R, 0, TAU);
+  g.fill();
+  g.strokeStyle = css(C.dealDark, 0.7);
+  g.lineWidth = 1;
+  g.stroke();
+  const ri = R - 6;
+  const ig = g.createRadialGradient(cf.x + dx * 0.25, cf.y + dy * 0.25, 2, cf.x, cf.y, ri);
+  ig.addColorStop(0, '#3e2d1f');
+  ig.addColorStop(1, '#1a130e');
+  g.fillStyle = ig;
+  g.beginPath();
+  g.arc(cf.x, cf.y, ri, 0, TAU);
+  g.fill();
+  // inner wall catching a little light on the lower right
+  g.strokeStyle = 'rgba(150,120,80,0.3)';
+  g.lineWidth = 2;
+  g.beginPath();
+  g.arc(cf.x, cf.y, ri - 1.5, 0.1, 1.6);
+  g.stroke();
+  // fan blades at the back of the bore
+  const fc = { x: cf.x + dx * 0.3, y: cf.y + dy * 0.3 };
+  g.strokeStyle = 'rgba(120,96,64,0.35)';
+  g.lineWidth = 3;
+  g.beginPath();
+  for (let k = 0; k < 4; k++) {
+    const a = 0.5 + (k * Math.PI) / 2;
+    g.moveTo(fc.x, fc.y);
+    g.lineTo(fc.x + Math.cos(a) * ri * 0.7, fc.y + Math.sin(a) * ri * 0.7);
+  }
   g.stroke();
   // model stand (rod to the rotor hub)
   g.strokeStyle = css(C.brass);
   g.lineWidth = 1.6;
   g.beginPath();
   g.moveTo(TUN.rot.x, TUN.rot.y);
-  g.lineTo(TUN.rot.x, iy0 + ih);
+  g.lineTo(TUN.rot.x, cf.y + ri);
   g.stroke();
-  // brass dial on the side (friction dynamometer)
+  // brass dial on the drum (friction dynamometer read-out)
   g.fillStyle = css(C.brass);
   g.beginPath();
   g.ellipse(124, 752, 9, 10, 0, 0, TAU);
@@ -1861,6 +1914,14 @@ function paintTunnel(g, rng) {
     g.moveTo(124 + Math.cos(a) * 5, 752 + Math.sin(a) * 6);
     g.lineTo(124 + Math.cos(a) * 6.3, 752 + Math.sin(a) * 7.3);
     g.stroke();
+  }
+  // drum cradle on the table
+  g.fillStyle = css(mixc(C.dealDark, C.tar, 0.3));
+  for (const f of [0.18, 0.8]) {
+    const x = cf.x + dx * f;
+    const y = cf.y + dy * f + R;
+    poly(g, [[x - 9, y - 4], [x + 9, y - 4], [x + 11, y + 6], [x - 11, y + 6]]);
+    g.fill();
   }
 }
 
@@ -2057,7 +2118,7 @@ function paintNotebookBase(g) {
 }
 
 function getForeground(kit) {
-  return kit.bake('lacour_fg_v7', S, S - FG_Y, (g, rng) => {
+  return kit.bake('lacour_fg_v8', S, S - FG_Y, (g, rng) => {
     g.translate(0, -FG_Y);
     g.lineCap = 'round';
     g.lineJoin = 'round';
@@ -2074,11 +2135,14 @@ function getForeground(kit) {
     paintJar(g, rng);
     paintLamp(g);
     paintNotebookBase(g);
-    // signature, lower right, in thin brown paint
-    g.font = `italic 500 19px "IM Fell English", "Cormorant Garamond", Georgia, serif`;
-    g.fillStyle = 'rgba(70,45,25,0.8)';
-    g.textAlign = 'right';
-    g.fillText('Askov 1891', 858, 966);
+    // signature, lower left in light ochre paint on the dark table shadow (the animated
+    // grass on the right would cover it)
+    g.font = `italic 400 20px "IM Fell English", "Cormorant Garamond", Georgia, serif`;
+    g.textAlign = 'left';
+    g.fillStyle = 'rgba(40,30,18,0.45)';
+    g.fillText('Askov 1891', 113, 962);
+    g.fillStyle = 'rgba(222,196,138,0.9)';
+    g.fillText('Askov 1891', 112, 961);
   });
 }
 

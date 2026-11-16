@@ -8,10 +8,12 @@
 // newsreel title.
 //
 // The machine (Putnam, "Power from the Wind", 1948): the first megawatt-class turbine —
-// 1,250 kW synchronous generator, TWO stainless-steel-skinned blades (≈20 m long, ≈2.4 m
-// chord), rotor ≈53 m (175 ft) across, DOWNWIND of a ≈37 m (120 ft) four-legged steel
-// lattice tower, hinged blade roots so the blades cone slightly downwind, hydraulic pitch
-// control, 28.7 rpm. A large boxy housing on the pintle at the tower top carries shaft,
+// 1,250 kW synchronous generator, TWO stainless-steel-skinned blades (≈20 m long, constant
+// 3.5 m chord, square tips, no taper), rotor ≈53 m (175 ft) across, DOWNWIND of a 33.5 m
+// (110 ft) four-legged steel lattice tower (hub ≈37 m / 120 ft up), hinged blade roots so
+// the blades cone slightly downwind, hydraulic pitch control, 28.7 rpm. It was NOT the
+// first grid-connected wind turbine (e.g. Balaklava 1931 fed a grid): it was the first
+// megawatt-class one, phased in to the Central Vermont lines on 19 Oct 1941. A large boxy housing on the pintle at the tower top carries shaft,
 // gearing and generator. Forested summit, early-winter snow, a pole line carries the power
 // down the mountain to the utility's grid.
 //
@@ -58,7 +60,9 @@ const HUB_A = 80;
 const HUB_Y = TW.h + 22;
 const HUB3 = { X: AXV.x * HUB_A, Y: HUB_Y, Z: AXV.z * HUB_A };
 const HUB = P(HUB3.X, HUB3.Y, HUB3.Z);
-const ROTOR_R = 234; // 26.7 m at 8.7 px/m (tower 36.6 m = 318 px)
+// scale ≈9.5 px/m: tower 33.5 m (110 ft) = 318 px, hub ≈36 m, rotor radius 26.65 m = 252 px
+// (rotor diameter ≈1.6 × tower height, as on the real machine)
+const ROTOR_R = 252;
 const OMEGA = (28.7 / 60) * TAU; // 28.7 rpm
 
 // timing ---------------------------------------------------------------------
@@ -1015,7 +1019,7 @@ function getPicture(kit) {
 // newsreel title superimposed on the lower third
 const TITLE = { x: 270, y: 792, w: 700, h: 168 };
 function getTitle(kit) {
-  return kit.bake('putnam_title_v2', TITLE.w, TITLE.h, (g) => {
+  return kit.bake('putnam_title_v3', TITLE.w, TITLE.h, (g) => {
     const cx = TITLE.w / 2 + 6;
     g.textAlign = 'center';
     g.textBaseline = 'alphabetic';
@@ -1043,7 +1047,7 @@ function getTitle(kit) {
     g.restore();
     draw("GRANDPA'S KNOB, VERMONT", `400 30px "Bebas Neue", "Oswald", Impact, sans-serif`, 46, '#f2f0ea', 'rgba(15,15,15,0.85)', 6);
     draw('1941 · 佛蒙特州 · 1,250 kW', `900 42px "Noto Sans TC", "Noto Sans CJK TC", sans-serif`, 100, '#ffffff', 'rgba(10,10,10,0.9)', 0);
-    draw('爺爺丘上，風力首次併入電網', `700 24px "Noto Sans TC", "Noto Sans CJK TC", sans-serif`, 140, '#ecebe6', 'rgba(10,10,10,0.85)', 4);
+    draw('爺爺丘上，首座百萬瓦級風機向電網送電', `700 24px "Noto Sans TC", "Noto Sans CJK TC", sans-serif`, 140, '#ecebe6', 'rgba(10,10,10,0.85)', 4);
     // rules either side of the top line
     g.strokeStyle = 'rgba(240,238,230,0.85)';
     g.lineWidth = 2;
@@ -1077,8 +1081,8 @@ function bladePoint(theta, r, chordOff) {
 
 function drawBlade(g, theta) {
   const R = ROTOR_R;
-  const r0 = R * 0.25;
-  const chord = (r) => lerp(24, 19, (r - r0) / (R - r0));
+  const r0 = R * 0.25; // blade root at ~22 ft of the 87.5 ft radius (65.6 ft blades)
+  const chord = () => 33; // constant 11.4 ft (3.5 m) chord: rectangular, no taper
   // shank (round tube from the hub to the blade)
   const s0 = bladePoint(theta, 10, 0);
   const s1 = bladePoint(theta, r0 + 6, 0);
@@ -1092,24 +1096,22 @@ function drawBlade(g, theta) {
   g.strokeStyle = gv(150, 0.55);
   g.lineWidth = 2;
   g.stroke();
-  // blade planform: leading edge (chordOff +) and trailing edge (-), rounded tip
+  // blade planform: leading edge (chordOff +) and trailing edge (-), square tip
   const N = 10;
   const lead = [];
   const trail = [];
   for (let k = 0; k <= N; k++) {
-    const r = lerp(r0, R - 8, k / N);
+    const r = lerp(r0, R, k / N);
     const c = chord(r);
     lead.push(bladePoint(theta, r, c * 0.3));
     trail.push(bladePoint(theta, r, -c * 0.7));
   }
-  const tip = bladePoint(theta, R, -2);
   // stainless steel: brightness changes as the blade turns (sky reflection / glint)
   const glint = Math.pow(Math.max(0, Math.cos(theta - 2.2)), 6);
   const base = 200 + 26 * Math.cos(theta * 1.0 + 0.6) + 40 * glint;
   g.beginPath();
   g.moveTo(lead[0].x, lead[0].y);
   for (const p of lead) g.lineTo(p.x, p.y);
-  g.quadraticCurveTo(tip.x, tip.y, trail[N].x, trail[N].y);
   for (let k = N; k >= 0; k--) g.lineTo(trail[k].x, trail[k].y);
   g.closePath();
   g.fillStyle = gv(base);
@@ -1122,7 +1124,7 @@ function drawBlade(g, theta) {
   g.lineWidth = 2;
   g.beginPath();
   const m0 = bladePoint(theta, r0 + 4, 0);
-  const m1 = bladePoint(theta, R - 14, 0);
+  const m1 = bladePoint(theta, R - 6, 0);
   g.moveTo(m0.x, m0.y);
   g.lineTo(m1.x, m1.y);
   g.stroke();

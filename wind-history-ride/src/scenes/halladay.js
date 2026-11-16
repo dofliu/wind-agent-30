@@ -7,8 +7,15 @@
 // plate, gradients and shading built from stipple dots, ornate Victorian lettering
 // on a scroll ribbon, double-ruled border with corner rosettes.
 //
-// The machine: Daniel Halladay's self-governing farm windpump (Ellington, Conn.,
-// patented 1854). A wheel of many narrow wooden slats grouped in hinged SECTIONS:
+// The card is dated as an advertisement of the 1870s ("PATENTED 1854" is only the
+// tagline; the right medallion reads "MODEL OF 1876"), because the sectional wheel came
+// about the end of the Civil War: the 1854 patent machine (US 11,629) had FOUR flat
+// sails on radial spindles whose pitch the governor changed. That 1854 design is shown
+// in a small patent-drawing vignette, upper left (「1854 專利原型：四片帆」); its sails
+// feather in the bar-3 gust while the big wheel furls.
+//
+// The machine: Daniel Halladay's self-governing farm windpump, sectional-wheel
+// production type (c.1865–1880s). A wheel of many narrow wooden slats grouped in hinged SECTIONS:
 // in a strong wind the sections swing back like an umbrella closing (the wheel
 // "furls"), holding the speed down; a long TAIL VANE keeps the wheel facing the
 // wind; a tall four-legged wooden lattice tower; a direct-stroke crank drives a
@@ -60,6 +67,32 @@ const C = {
 };
 const KEY_RGB = '44,31,21';
 const key = (a) => `rgba(${KEY_RGB},${a})`;
+
+// Chinese on the card (bottom band + the patent vignette label). Preload the CJK glyph
+// slices at module evaluation and key the text bakes on font readiness, so a bake made
+// before the web font arrives is redone once it is there (no fallback glyphs baked in).
+const ZH_HEAD = '自調式汲水風車';
+const ZH_SUB = '強風自動收翼 · 風輪永遠迎風 · 日夜汲水不息';
+const ZH_INSET = '1854 專利原型：四片帆';
+const ZH_ALL = ZH_HEAD + ZH_SUB + ZH_INSET;
+const ZH_FONT = '"Noto Serif TC"';
+if (typeof document !== 'undefined' && document.fonts && document.fonts.load) {
+  try {
+    for (const w of ['400', '700', '900']) document.fonts.load(`${w} 40px ${ZH_FONT}`, ZH_ALL).catch(() => {});
+  } catch (e) {
+    /* offline: fall back silently */
+  }
+}
+let _zhFontsOk = false;
+function zhFontsReady() {
+  if (_zhFontsOk) return true;
+  try {
+    _zhFontsOk = ['400', '900'].every((w) => document.fonts.check(`${w} 40px ${ZH_FONT}`, ZH_ALL));
+    return _zhFontsOk;
+  } catch (e) {
+    return true;
+  }
+}
 // colour plates printed slightly off register against the key plate
 const REG = { x: 2.2, y: 1.5 };
 
@@ -897,17 +930,26 @@ function paintTail(g, kit) {
     g.lineTo(b.x, b.y);
   }
   g.stroke();
-  // painted lettering in the vane's own perspective
+  // a painted five-pointed star in the vane's own perspective (no date on the machine:
+  // the sectional wheel is the 1870s production type, not the 1854 patent design)
   const o = at(176, TOWER.H + 24);
   const ax = sub3(at(177, TOWER.H + 24), o); // per unit along D (screen dx, dy)
   const ay = { x: 0, y: TW.pc };
   g.save();
   g.setTransform(ax.x, ax.y, ay.x, ay.y, o.x, o.y);
-  g.font = `900 22px ${kit.FONT.didone}`;
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
+  g.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 ? 6.2 : 15;
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    if (i === 0) g.moveTo(r * Math.cos(a), r * Math.sin(a));
+    else g.lineTo(r * Math.cos(a), r * Math.sin(a));
+  }
+  g.closePath();
   g.fillStyle = C.cream;
-  g.fillText('1854', 0, 0);
+  g.fill();
+  g.lineWidth = 1.2;
+  g.strokeStyle = C.key;
+  g.stroke();
   g.restore();
 }
 function paintTowerFront(g, rng, kit) {
@@ -1599,7 +1641,7 @@ function paintBottomBand(g, rng, kit) {
   g.textAlign = 'center';
   g.textBaseline = 'alphabetic';
   g.font = `900 64px ${kit.FONT.serif}`;
-  const zh = '自調式汲水風車';
+  const zh = ZH_HEAD;
   const cy = y0 + 84;
   g.fillStyle = C.blue;
   g.fillText(zh, 500 + 4, cy + 4);
@@ -1620,9 +1662,10 @@ function paintBottomBand(g, rng, kit) {
   g.font = `italic 700 17px ${kit.FONT.didone}`;
   g.fillStyle = C.blue;
   g.fillText('For Stock Ranches, Farms & Railroad Water Stations.', 500, cy + 34);
-  g.font = `500 15px ${kit.FONT.serif}`;
+  // (400, not 500: the web font is served at 400/700/900 only)
+  g.font = `400 15.5px ${kit.FONT.serif}`;
   g.fillStyle = C.brown;
-  g.fillText('強風自動收翼 · 尾舵永遠迎風 · 日夜汲水不息', 500, cy + 58);
+  g.fillText(ZH_SUB, 500, cy + 58);
   // flourishes
   g.strokeStyle = C.red;
   g.lineWidth = 2;
@@ -1632,8 +1675,223 @@ function paintBottomBand(g, rng, kit) {
     g.bezierCurveTo(500 + s * 290, cy + 14, 500 + s * 300, cy + 44, 500 + s * 330, cy + 30);
     g.stroke();
   }
+  // the card dates itself: a production model of the 1870s, under the 1854 patent
   medallion(g, kit, 160, y0 + 72, 'PATENTED', '1854', false);
-  medallion(g, kit, 840, y0 + 72, '自動', '迎風', true);
+  medallion(g, kit, 840, y0 + 72, 'MODEL OF', '1876', false);
+}
+
+// -----------------------------------------------------------------------------
+// INSET: the 1854 patent design (US 11,629, 29 Aug 1854) as a patent-drawing vignette.
+// Four flat sails on radial spindles; the governor turns the spindles to change the
+// sails' angle to the wind (here they feather in the bar-3 gust); a vane behind keeps
+// the wheel facing the wind. Same wind as the main mill (from the front-left).
+// -----------------------------------------------------------------------------
+const INSET = { x0: 64, y0: 252, x1: 292, y1: 440, band: 32 };
+const IN_HUB = { x: 128, y: 322 };
+const IN_R = 60;
+const IN_K = 0.94; // drawing scale (screen px per unit)
+function inP(v) {
+  return { x: IN_HUB.x + v.x * IN_K, y: IN_HUB.y + (-v.y * TW.pc + v.z * TW.ps) * IN_K, z: v.z };
+}
+function insetFrame(gg) {
+  gg.beginPath();
+  gg.rect(INSET.x0, INSET.y0, INSET.x1 - INSET.x0, INSET.y1 - INSET.y0);
+}
+/** sail pitch: 28° to the plane of rotation running, ~80° (edge to the wind) in the gust */
+function insetPitch(T) {
+  return (28 + 52 * (furlAngle(T) / (58 * DEG))) * DEG;
+}
+function insetRot(T) {
+  // slows almost to a stand as the sails feather in the gust
+  return -TAU * 0.6 * (T - 0.82 * gustInt(T));
+}
+function paintInsetStatic(g, rng, kit) {
+  const { x0, y0, x1, y1, band } = INSET;
+  // card: patent-paper white with a red rule (off register) and an ochre inner rule
+  g.save();
+  g.translate(REG.x * 0.8, REG.y * 0.8);
+  g.fillStyle = 'rgba(44,31,21,0.22)';
+  g.fillRect(x0 + 3, y0 + 4, x1 - x0, y1 - y0); // soft drop shadow of the tipped-in vignette
+  g.restore();
+  g.fillStyle = '#fbf6e6';
+  insetFrame(g);
+  g.fill();
+  stipple(g, rng, x0, y0, x1, y1, 3.2, () => 0.05, C.ochre, 0.4, 0.8);
+  g.save();
+  g.translate(REG.x * 0.6, REG.y * 0.6);
+  g.strokeStyle = C.red;
+  g.lineWidth = 4;
+  insetFrame(g);
+  g.stroke();
+  g.restore();
+  g.strokeStyle = C.key;
+  g.lineWidth = 1;
+  insetFrame(g);
+  g.stroke();
+  g.strokeStyle = C.ochre;
+  g.lineWidth = 1.2;
+  g.strokeRect(x0 + 6, y0 + 6, x1 - x0 - 12, y1 - y0 - 12);
+  // patent sheet heading (texture-size, like the engraved title of a patent drawing)
+  g.fillStyle = C.key;
+  g.textAlign = 'right';
+  g.textBaseline = 'alphabetic';
+  const gy = y1 - band - 8;
+  g.font = `700 10.5px ${kit.FONT.didone}`;
+  g.fillText('D. HALLADAY.', x1 - 13, gy - 31);
+  g.font = `italic 700 9.5px ${kit.FONT.didone}`;
+  g.fillText('Wind Mill. No. 11,629.', x1 - 13, gy - 19);
+  g.fillText('Patented Aug. 29, 1854.', x1 - 13, gy - 7);
+  // ground line + the tower stub (wooden derrick top, cut off like a patent view)
+  const head = inP(mul3(UPW, -24));
+  g.strokeStyle = C.key;
+  g.lineWidth = 1;
+  g.beginPath();
+  g.moveTo(x0 + 16, gy);
+  g.lineTo(x1 - 16, gy);
+  g.stroke();
+  g.lineWidth = 0.5;
+  g.beginPath();
+  for (let x = x0 + 18; x < x1 - 18; x += 4) {
+    g.moveTo(x, gy + 2);
+    g.lineTo(x - 3, gy + 6);
+  }
+  g.stroke();
+  const legs = [
+    [head.x - 5, head.y + 12, head.x - 20, gy],
+    [head.x + 5, head.y + 12, head.x + 20, gy],
+    [head.x, head.y + 12, head.x + 3, gy],
+  ];
+  for (const [ax, ay, bx, by] of legs) beam(g, { x: ax, y: ay }, { x: bx, y: by }, 2.4, C.wood, 0.8);
+  g.strokeStyle = C.key;
+  g.lineWidth = 0.7;
+  g.beginPath();
+  for (const f of [0.28, 0.62]) {
+    const f2 = f + 0.34;
+    const lx = (u) => lerp(legs[0][0], legs[0][2], u);
+    const rx = (u) => lerp(legs[1][0], legs[1][2], u);
+    const yy = (u) => lerp(legs[0][1], legs[0][3], u);
+    g.moveTo(lx(f), yy(f));
+    g.lineTo(rx(Math.min(1, f2)), yy(Math.min(1, f2)));
+    g.moveTo(rx(f), yy(f));
+    g.lineTo(lx(Math.min(1, f2)), yy(Math.min(1, f2)));
+    g.moveTo(lx(f), yy(f));
+    g.lineTo(rx(f), yy(f));
+  }
+  g.stroke();
+  // vane on its boom, streaming downwind (behind the head)
+  const D = mul3(UPW, -1);
+  const at = (d, y) => inP(add3(v3(0, y, 0), mul3(D, d)));
+  beam(g, at(20, 2), at(88, 3), 1.6, C.woodSh, 0.7);
+  const vane = [at(56, -9), at(90, -8), at(92, 19), at(59, 16)];
+  plate(g, (gg) => poly(gg, vane), C.red, 1);
+  g.strokeStyle = key(0.5);
+  g.lineWidth = 0.6;
+  g.beginPath();
+  for (let i = 1; i < 4; i++) {
+    const a = at(58, -9 + i * 6.3);
+    const b = at(91, -8 + i * 6.8);
+    g.moveTo(a.x, a.y);
+    g.lineTo(b.x, b.y);
+  }
+  g.stroke();
+  // head casting + shaft forward to the hub, governor weight on its lever
+  plate(g, (gg) => {
+    gg.beginPath();
+    gg.ellipse(head.x, head.y + 4, 9, 4, 0, 0, TAU);
+    gg.rect(head.x - 9, head.y - 4, 18, 8);
+  }, C.iron, 0.9);
+  beam(g, head, inP(v3(0, 0, 0)), 2.6, C.iron, 0.7);
+  const lv0 = inP(mul3(UPW, -10));
+  const lv1 = { x: lv0.x + 10, y: lv0.y - 14 };
+  g.strokeStyle = C.key;
+  g.lineWidth = 1;
+  g.beginPath();
+  g.moveTo(lv0.x, lv0.y);
+  g.lineTo(lv1.x, lv1.y);
+  g.stroke();
+  plate(g, (gg) => {
+    gg.beginPath();
+    gg.arc(lv1.x, lv1.y, 3.2, 0, TAU);
+  }, C.iron, 0.8);
+  // label band
+  g.fillStyle = C.paperLt;
+  g.fillRect(x0 + 7, y1 - band, x1 - x0 - 14, band - 7);
+  g.strokeStyle = C.key;
+  g.lineWidth = 0.9;
+  g.beginPath();
+  g.moveTo(x0 + 7, y1 - band);
+  g.lineTo(x1 - 7, y1 - band);
+  g.stroke();
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.font = `900 17px ${kit.FONT.serif}`;
+  g.fillStyle = C.red;
+  g.fillText(ZH_INSET, (x0 + x1) / 2 + 0.8, y1 - band / 2 - 2.6);
+  g.fillStyle = C.blue;
+  g.fillText(ZH_INSET, (x0 + x1) / 2, y1 - band / 2 - 3.4);
+}
+
+/** the four sails (per frame): turning slowly, feathering in the gust */
+function drawInsetSails(ctx, T) {
+  const rot = insetRot(T);
+  const p = insetPitch(T);
+  const cp = Math.cos(p);
+  const sp = Math.sin(p);
+  const hub = v3(0, 0, 0);
+  const sails = [];
+  for (let k = 0; k < 4; k++) {
+    const a = rot + (k * TAU) / 4;
+    const er = add3(mul3(E2, Math.cos(a)), mul3(E1, Math.sin(a)));
+    const et = add3(mul3(E2, -Math.sin(a)), mul3(E1, Math.cos(a)));
+    const w = add3(mul3(et, cp), mul3(UPW, sp)); // across the sail, turned on its spindle
+    const pt = (r, s) => inP(add3(add3(hub, mul3(er, r)), mul3(w, s)));
+    const q = [pt(IN_R * 0.3, -IN_R * 0.1), pt(IN_R, -IN_R * 0.2), pt(IN_R, IN_R * 0.2), pt(IN_R * 0.3, IN_R * 0.1)];
+    sails.push({ q, sp0: inP(add3(hub, mul3(er, 4))), sp1: inP(add3(hub, mul3(er, IN_R * 1.04))), z: inP(add3(hub, mul3(er, IN_R * 0.6))).z });
+  }
+  sails.sort((A, B) => A.z - B.z);
+  ctx.save();
+  insetFrame(ctx);
+  ctx.clip();
+  ctx.lineJoin = 'round';
+  for (const s of sails) {
+    const q = s.q;
+    const area = (q[1].x - q[0].x) * (q[3].y - q[0].y) - (q[1].y - q[0].y) * (q[3].x - q[0].x);
+    const front = area < 0;
+    ctx.save();
+    ctx.translate(REG.x * 0.5, REG.y * 0.5);
+    poly(ctx, q);
+    ctx.fillStyle = front ? '#f3e6c4' : '#c9a66e';
+    ctx.fill();
+    ctx.restore();
+    // patent-drawing shade lines along the board on the back face
+    if (!front) {
+      ctx.strokeStyle = key(0.45);
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      for (let i = 1; i < 4; i++) {
+        const u = i / 4;
+        ctx.moveTo(lerp(q[0].x, q[3].x, u), lerp(q[0].y, q[3].y, u));
+        ctx.lineTo(lerp(q[1].x, q[2].x, u), lerp(q[1].y, q[2].y, u));
+      }
+      ctx.stroke();
+    }
+    ctx.strokeStyle = C.key;
+    ctx.lineWidth = 1;
+    poly(ctx, q);
+    ctx.stroke();
+    // the radial spindle the sail turns on
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(s.sp0.x, s.sp0.y);
+    ctx.lineTo(s.sp1.x, s.sp1.y);
+    ctx.stroke();
+  }
+  const h = inP(hub);
+  plate(ctx, (gg) => {
+    gg.beginPath();
+    gg.ellipse(h.x, h.y, 4.2, 5.4, 0, 0, TAU);
+  }, C.iron, 0.9, C.key, 0.5);
+  ctx.restore();
 }
 
 // -----------------------------------------------------------------------------
@@ -2246,7 +2504,10 @@ export function render(kit, slot, scene, params) {
     paintLonghorn(g, rng);
     paintHereford(g, rng);
   });
-  const fg = kit.bake('halladay_fg', S, S, (g, rng) => {
+  // bakes that carry Chinese are keyed on the web font being ready (re-baked once it is)
+  const zhKey = zhFontsReady() ? 'zh' : 'nozh';
+  const inset = kit.bake(`halladay_inset_${zhKey}`, S, S, (g, rng) => paintInsetStatic(g, rng, kit));
+  const fg = kit.bake(`halladay_fg_${zhKey}`, S, S, (g, rng) => {
     paintRoad(g, rng);
     paintForeground(g, rng, kit);
     paintBottomBand(g, rng, kit);
@@ -2280,6 +2541,8 @@ export function render(kit, slot, scene, params) {
   });
 
   ctx.drawImage(bg, 0, 0);
+  ctx.drawImage(inset, 0, 0);
+  drawInsetSails(ctx, T);
   drawDistantMill(ctx, T);
   drawTrain(ctx, T, train);
   ctx.drawImage(towerBack, 0, 0);

@@ -68,7 +68,9 @@ const BURROW = { x: 712, y: 744 };
 // --- inscription ----------------------------------------------------------------
 const TITLE = '借風汲鹵';
 const COLOPHON = ['海隅斥鹵之地豎木作軸', '張帆八面風至則輪自轉', '引翻車汲潮入池曝日成鹽'];
-const SIGN = '琵鷺生寫';
+// painter's signature: 「寫生」 (drawn from life) — the earlier 「生寫」 is not an idiomatic
+// signature formula in Chinese painting inscriptions.
+const SIGN = '琵鷺寫生';
 const SEALS = '乘風琵鷺騎行';
 const ALL_TEXT = TITLE + COLOPHON.join('') + SIGN + SEALS;
 
@@ -88,7 +90,10 @@ let _fontsOk = false;
 function fontsReady() {
   if (_fontsOk) return true;
   try {
-    _fontsOk = document.fonts.check('400 40px "LXGW WenKai TC"', ALL_TEXT) && document.fonts.check('900 40px "Noto Serif TC"', SEALS);
+    _fontsOk =
+      document.fonts.check('400 40px "LXGW WenKai TC"', ALL_TEXT) &&
+      document.fonts.check('700 40px "LXGW WenKai TC"', TITLE) &&
+      document.fonts.check('900 40px "Noto Serif TC"', SEALS);
     return _fontsOk;
   } catch (e) {
     return true;
@@ -1360,7 +1365,7 @@ function paintSeal(kit, g, x, y, size, chars, mode, rng) {
  * bled (blur) and re-thresholded into organic ink edges, with ink density fading as
  * the brush runs dry down each column and a little dry-brush break-up.
  */
-function inkify(kit, w0, h0, drawFn, density, rng) {
+function inkify(kit, w0, h0, drawFn, density, rng, fineX = 0) {
   // work at 2x so small glyphs keep their counters, then downsample
   const SS = 2;
   const w = w0 * SS;
@@ -1385,7 +1390,9 @@ function inkify(kit, w0, h0, drawFn, density, rng) {
         d[i + 3] = 0;
         continue;
       }
-      let k = sstep(0.22, 0.5, a);
+      // small colophon glyphs (sprite x < fineX) get a crisper threshold so dense
+      // characters (鹵 隅 鷺 鹽 翻) keep their counters at film scale
+      let k = x < fineX * SS ? sstep(0.34, 0.6, a) : sstep(0.22, 0.5, a);
       // dry-brush streaks: fine directional noise breaks the edges
       const n = vnoise(x * 0.45 + y * 0.12 + 17.3) * 0.6 + vnoise(y * 0.85 + x * 0.05) * 0.4;
       k *= 0.8 + 0.2 * n;
@@ -1438,7 +1445,7 @@ function paintInscription(kit, g, rng) {
       let yy = 24 + ci * 5;
       for (let i = 0; i < line.length; i++) {
         t.font = `400 ${cSize}px ${kit.FONT.kai}`;
-        t.lineWidth = 0.7;
+        t.lineWidth = 0.45;
         const jx = x + (rng() - 0.5) * 1.4;
         t.strokeText(line[i], jx, yy);
         t.fillText(line[i], jx, yy);
@@ -1449,7 +1456,7 @@ function paintInscription(kit, g, rng) {
     let sy = 120;
     for (let i = 0; i < SIGN.length; i++) {
       t.font = `400 ${cSize}px ${kit.FONT.kai}`;
-      t.lineWidth = 0.8;
+      t.lineWidth = 0.5;
       t.strokeText(SIGN[i], sx, sy);
       t.fillText(SIGN[i], sx, sy);
       sy += cSize + 3;
@@ -1461,7 +1468,7 @@ function paintInscription(kit, g, rng) {
     const local = ((y - 24) % 150) / 150;
     return 0.9 - 0.28 * local - col * 0.03;
   };
-  const inked = inkify(kit, TXT_W, TXT_H, layout, density, rng);
+  const inked = inkify(kit, TXT_W, TXT_H, layout, density, rng, 160);
   g.drawImage(inked, 0, 0);
   // seals below the signature + leading seal beside the title
   const sy = 120 + SIGN.length * (cSize + 3);
@@ -2791,7 +2798,7 @@ export function render(kit, slot, scene, params) {
   // ---- static layers
   const bg = kit.bake('china_bg_v4', P, P, (g, rng) => paintBackground(kit, g, rng));
   const overlay = kit.bake('china_silk_v1', P, P, (g, rng) => paintOverlay(kit, g, rng));
-  const textKey = fontsReady() ? 'china_text_v3' : 'china_text_fallback_v3';
+  const textKey = fontsReady() ? 'china_text_v5' : 'china_text_fallback_v5';
   const text = kit.bake(textKey, TXT_W, TXT_H, (g, rng) => paintInscription(kit, g, rng));
   const junks = [0, 1, 2].map((v) => kit.bake(`china_junk_${v}`, 90, 76, (g, rng, w, h) => paintJunk(kit, g, w, h, rng, v)));
   const reedL = kit.bake('china_reeds_L2', 250, 170, (g, rng, w, h) => paintReedClump(kit, g, w, h, rng, 0));
