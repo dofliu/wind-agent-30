@@ -54,6 +54,8 @@ function oilAt(tm) {
   return 70.2 + 8.6 * Math.pow(u, 1.25);
 }
 const OIL_READ = oilAt(1.0).toFixed(1);
+// rise over the hour plotted on the HMI trend when the agent cites it (~ +7.8 °C in 60 min)
+const OIL_TREND = (oilAt(5) - oilAt(-55)).toFixed(1);
 
 // terminal transcript: each line = { t, kind, segs:[[text, colour]], cps }
 //   kind 'cmd' is typed by the agent at `cps`; others stream (high cps) or appear at once (cps 0)
@@ -68,7 +70,7 @@ const LINES = [
   { t: 3.05, cps: 120, segs: [['    ', C.dim], ['檢查冷卻風扇、油冷卻器壓差與濾芯', C.text]] },
   { t: 4.05, cps: 42, kind: 'cmd', segs: [['explain_alarm', C.cyan], ['(', C.text], ['"A-217"', C.orange], [')', C.text]] },
   { t: 4.75, cps: 34, segs: [['  → ', C.dim], ['可能根因：冷卻風扇故障或冷卻器積污', C.text]] },
-  { t: 5.45, cps: 60, segs: [['    ', C.dim], ['(依據：', C.muted], ['SOP-GBX-04 §3.2', C.blue], ['，趨勢 +3.1 °C/h)', C.muted]] },
+  { t: 5.45, cps: 60, segs: [['    ', C.dim], ['(依據：', C.muted], ['SOP-GBX-04 §3.2', C.blue], [`，趨勢 +${OIL_TREND} °C/h)`, C.muted]] },
   { t: 6.0, cps: 48, kind: 'cmd', segs: [['write_register', C.cyan], ['(', C.text], ['40021', C.orange], [', ', C.text], ['0', C.orange], [')', C.text]] },
   { t: 6.62, cps: 0, kind: 'deny', segs: [['  ✗ DENIED', C.red], [' · read-only by default', C.red]] },
   { t: 6.95, cps: 60, segs: [['    ', C.dim], ['已升級給值班工程師 → 待人工確認', C.amber]] },
@@ -89,7 +91,8 @@ const STATIC_TEXT = [
   '齒輪箱油溫偏高可能根因冷卻風扇故障或冷卻器積污依據趨勢已升級給值班工程師待人工確認收到排程巡檢',
   '風速轉速功率葉片角度偏航狀態發電中離岸風機即時監控趨勢分鐘警告跳機控制寫入鎖定唯讀預設',
   '讀取狀態查解釋警報附交給工程師寫入已攔下工作階段時間軸次引用升級最後一步交給人。值班',
-  '檢查油冷卻器壓差與濾芯：，（）→↑✓✗●▲°§·',
+  '檢查油冷卻器壓差與濾芯：，（）→↑✓✗●▲°§·…○',
+  '風機維運主控台模式有效功率轉子分析中待命呼叫工具我來處理一份',
 ].join('');
 
 // Kick off loading of the CJK font slices this panel needs (the engine preloads only the
@@ -104,10 +107,19 @@ const STATIC_TEXT = [
     /* offline / no FontFaceSet: fall back silently */
   }
 })();
+let _fontsOk = false;
 function fontsReady() {
+  if (_fontsOk) return true;
   try {
     if (typeof document === 'undefined' || !document.fonts || !document.fonts.check) return true;
-    return document.fonts.check('500 13px "Noto Sans TC"', '齒輪箱油溫偏高值班工程師');
+    // every weight the baked chrome uses (400 labels, 500 titles, 700 chips) + the mono face
+    _fontsOk =
+      document.fonts.check('400 13px "Noto Sans TC"', STATIC_TEXT) &&
+      document.fonts.check('500 13px "Noto Sans TC"', STATIC_TEXT) &&
+      document.fonts.check('700 13px "Noto Sans TC"', STATIC_TEXT) &&
+      document.fonts.check('400 13px "JetBrains Mono"', 'WTG-03') &&
+      document.fonts.check('700 13px "JetBrains Mono"', 'WTG-03');
+    return _fontsOk;
   } catch (e) {
     return true;
   }
@@ -257,7 +269,8 @@ function paintNight(kit, g, rng) {
     g.fillStyle = gr;
     g.fillRect(0, y - 12, S, 24);
   }
-  // waning gibbous moon low in the gap between the panels (the blades sweep across it)
+  // waning gibbous moon in the gap between the panels (the blades sweep across it); before
+  // dawn it stands west of the sun, so its lit limb faces the sunrise on the right
   {
     const mx = 424;
     const my = 118;
@@ -270,8 +283,18 @@ function paintNight(kit, g, rng) {
     g.beginPath();
     g.arc(mx, my, 15, 0, TAU);
     g.clip();
-    g.fillStyle = '#e9eef6';
+    // unlit limb (faint earthshine) on the left, away from the sun
+    g.fillStyle = 'rgba(36,48,68,0.92)';
     g.fillRect(mx - 16, my - 16, 32, 32);
+    // lit part: right half-disc + left half-ellipse (gibbous), so the terminator bulges
+    // toward the dark limb as on the real moon
+    g.beginPath();
+    g.arc(mx, my, 15, -Math.PI / 2, Math.PI / 2);
+    g.ellipse(mx, my, 15 * 0.55, 15, 0, Math.PI / 2, Math.PI * 1.5);
+    g.closePath();
+    g.fillStyle = '#e9eef6';
+    g.fill();
+    g.clip();
     // maria
     g.fillStyle = 'rgba(150,165,190,0.35)';
     for (const [dx, dy, r] of [
@@ -284,11 +307,6 @@ function paintNight(kit, g, rng) {
       g.arc(mx + dx, my + dy, r, 0, TAU);
       g.fill();
     }
-    // terminator: the dark limb on the right (waning)
-    g.fillStyle = 'rgba(8,16,30,0.88)';
-    g.beginPath();
-    g.ellipse(mx + 17, my, 9, 16, 0, 0, TAU);
-    g.fill();
     g.restore();
   }
   // horizon haze
@@ -1675,7 +1693,8 @@ export function render(kit, slot, scene, params) {
   const SANS = kit.FONT.sans;
   ctx.save();
 
-  const night = kit.bake('agent_night', S, S, (g, rng) => paintNight(kit, g, rng));
+  const fr = fontsReady() ? 'ok' : 'fb';
+  const night = kit.bake(`agent_night_${fr}_v2`, S, S, (g, rng) => paintNight(kit, g, rng));
   const dawn = kit.bake('agent_dawn', S, 420, (g) => {
     const gr = g.createRadialGradient(780, 420, 10, 780, 420, 520);
     gr.addColorStop(0, 'rgba(255,170,110,0.55)');
@@ -1703,7 +1722,7 @@ export function render(kit, slot, scene, params) {
     g.fillRect(400, HORIZON + 4 - 360, 600, 720);
     g.restore();
   });
-  const chrome = kit.bake(`agent_chrome_${fontsReady() ? 'ok' : 'fb'}`, S, S, (g) => paintChrome(kit, g));
+  const chrome = kit.bake(`agent_chrome_${fr}`, S, S, (g) => paintChrome(kit, g));
 
   // --- back: night sea, the array, first light rising over the finale ---
   ctx.drawImage(night, 0, 0);

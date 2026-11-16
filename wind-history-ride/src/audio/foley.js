@@ -30,21 +30,28 @@ function valueNoise(seed, size = 512) {
 
 const onePole = (fc, sr) => 1 - Math.exp((-2 * Math.PI * fc) / sr);
 
+/** Windiness curve sampled on the 10 ms grid WindGen uses (shareable with a worker). */
+export function windTable(windiness, length, sr) {
+  const nW = Math.ceil((length / sr) * 100) + 2;
+  const tab = new Float32Array(nW);
+  for (let i = 0; i < nW; i++) tab[i] = windiness(i / 100);
+  return tab;
+}
+
 export class WindGen {
   /**
    * @param {number} sr generator sample rate (the engine passes output rate / 2)
    * @param {number} length samples at `sr`
-   * @param {(t:number)=>number} windiness 0..1 over film time (s)
+   * @param {((t:number)=>number)|Float32Array} windiness 0..1 over film time (s), or its windTable()
    * @param {number} seed
    */
   constructor(sr, length, windiness, seed = 1234) {
     this.sr = sr;
     this.length = length;
-    // windiness sampled on a 10 ms grid (the curve is slow; this keeps the inner loop lean)
-    const dur = length / sr;
-    const nW = Math.ceil(dur * 100) + 2;
-    const wTab = new Float32Array(nW);
-    for (let i = 0; i < nW; i++) wTab[i] = windiness(i / 100);
+    // windiness sampled on a 10 ms grid (the curve is slow; this keeps the inner loop lean).
+    // A precomputed table (see windTable) may be passed instead of the function.
+    const wTab = typeof windiness === 'function' ? windTable(windiness, length, sr) : windiness;
+    const nW = wTab.length;
     this.windiness = (t) => {
       const x = Math.max(0, t * 100);
       const i = Math.min(nW - 2, x | 0);

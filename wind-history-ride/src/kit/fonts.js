@@ -38,6 +38,7 @@ export const GOOGLE_FONTS_HREF =
     'family=Bebas+Neue',
     'family=Press+Start+2P',
     'family=VT323',
+    'family=Noto+Naskh+Arabic:wght@500;600',
   ].join('&') +
   '&display=block';
 
@@ -73,8 +74,12 @@ export async function loadFonts(sampleText = '') {
     ['400', 'Press Start 2P'],
     ['400', 'VT323'],
   ];
+  // Persian label in the #02 persia miniature (Arabic script)
+  const persian = 'آسیاب بادی باد صد و بیست روزه سیستان';
   const jobs = [
     ...specs.map(([w, f]) => document.fonts.load(`${w} 32px "${f}"`, text)),
+    document.fonts.load('600 32px "Noto Naskh Arabic"', persian),
+    document.fonts.load('500 32px "Noto Naskh Arabic"', persian),
     ...latinOnly.map(([w, f]) => document.fonts.load(`${w} 32px "${f}"`, latin)),
   ];
   const timeout = new Promise((res) => setTimeout(res, 12000));

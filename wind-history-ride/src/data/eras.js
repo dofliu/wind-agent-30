@@ -231,7 +231,7 @@ export const ERAS = [
     en: "The American Windpump",
     caption: "1854 哈勒戴自動調速風車，抽水助拓墾美國西部",
     description:
-      "1854 年，康乃狄克州機械師哈勒戴取得「自動調速」風車專利：風向板讓風輪自動對風，葉片隨風速改變角度，強風時自動減速，不必有人看管；南北戰爭前後又改良成由許多薄木片組成、能像傘一樣開合的分段式風輪。多葉片抽水風車從此遍布美國大平原，為農家、牲畜與鐵路蒸汽機車抽取地下水；美國能源部估計，1850–1970 年間全美裝設了超過 600 萬座以抽水為主的小型風機。",
+      "1854 年，康乃狄克州機械師哈勒戴取得「自動調速」風車專利：風向板讓風輪自動對風，葉片隨風速改變角度，強風時自動減速，不必有人看管；南北戰爭結束前後又改良成由許多薄木片組成、能像傘一樣開合的分段式風輪。多葉片抽水風車從此遍布美國大平原，為農家、牲畜與鐵路蒸汽機車抽取地下水；美國能源部估計，1850–1970 年間全美裝設了超過 600 萬座以抽水為主的小型風機。",
     facts: [
       "美國專利第 11,629 號於 1854 年 8 月 29 日授予哈勒戴；專利圖是四片可變角葉片。",
       "1888 年 Aermotor 推出經五千多次實驗設計的彎曲鋼葉片風車，1892 年已售出約 2 萬座。",
@@ -352,7 +352,7 @@ export const ERAS = [
     facts: [
       "帕特南稱這是「全球首次將風力同步送入電力公司的高壓線路」。",
       "1943 年主軸承損壞，因戰時缺料直到 1945 年 3 月才修復。",
-      "它直到 1979 年都是世界最大的風機。",
+      "一般認為它直到 1979 年仍是世界最大的風機。",
     ],
     specs: "1,250 kW 同步發電機；兩葉片、直徑 53.3 m、下風式、液壓全翼變槳、28.7 rpm；鋼桁架塔，輪轂離地約 37 m",
     sources: [
@@ -387,7 +387,7 @@ export const ERAS = [
       { label: "Videnskab.dk — Vindmøllens historie", url: "https://videnskab.dk/teknologi-innovation/vindmoellens-historie-saadan-taemmede-danskerne-vindens-energi" },
       { label: "Wikipedia — Gedser wind turbine", url: "https://en.wikipedia.org/wiki/Gedser_wind_turbine" },
     ],
-    style: '北歐中世紀現代主義海報',
+    style: '北歐世紀中期現代主義海報',
     styleEn: 'Mid-century Danish modernist poster',
     palette: ['#f2ebdc', '#c8102e', '#1d3557', '#f1c40f', '#2a2a2a'],
     frame: { family: 'poster', color: '#9aa0a6', accent: '#c8102e' },
@@ -403,7 +403,7 @@ export const ERAS = [
     en: "Oil Crisis & the Tvind Turbine",
     caption: "石油危機後，丹麥師生自建特溫風機，1978 年啟用至今仍運轉",
     description:
-      "1973 年的石油危機讓各國重新看見風能。美國由 NSF 與 ERDA 出資、NASA 執行大型風機研究，第一部試驗機 Mod-0（100 kW、雙葉片、下風式）於 1975 年在俄亥俄州運轉。同一時期，丹麥特溫（Tvind）學校的師生與志工自力建造轉子直徑 54 公尺的 Tvindkraft，1978 年啟用、至今仍在運轉，被視為世界上最古老、仍在運轉的百萬瓦級風機。",
+      "1973 年的石油危機讓各國重新看見風能。美國由 NSF 與 ERDA 出資、NASA 執行大型風機研究，第一部試驗機 Mod-0（100 kW、雙葉片、下風式）於 1975 年在俄亥俄州運轉。同一時期，丹麥特溫（Tvind）學校的師生與志工自力建造轉子直徑 54 公尺的 Tvindkraft，1978 年啟用、至今仍在運轉，常被認為是世界上仍在運轉、最古老的百萬瓦級風機之一。",
     facts: [
       "Tvindkraft 於 1975 年由約 400 名志工動土，1978 年 3 月 26 日啟用；塔高 53 公尺，名目 2 MW。",
       "它採三片玻璃纖維葉片、下風式轉子，設計時曾諮詢德國斯圖加特 Ulrich Hütter 的研究所。",
@@ -436,7 +436,7 @@ export const ERAS = [
     facts: [
       "聯邦租稅優惠於 1985 年底到期，市場隨即急凍。",
       "1980 年代中期，美國占全球風電裝置容量的絕大部分。",
-      "常見機型如 USW 56-100：轉子約 17 公尺、100 kW、下風式，裝在格子塔上。",
+      "常見機型如 USW 56-100：轉子約 17 公尺、100 kW、下風式，多裝在桁架塔上。",
     ],
     specs: "多為 50–100 kW 的三葉片小型風機（上風或下風），桁架塔或鋼管塔；也有少數達里厄立軸機",
     sources: [
@@ -460,13 +460,13 @@ export const ERAS = [
     en: "Vindeby: The First Offshore Wind Farm",
     caption: "1991 年丹麥 Vindeby：世界第一座離岸風場",
     description:
-      "1991 年，丹麥在洛蘭島外約 1.5–3 公里、水深僅數公尺的淺海，以混凝土重力式基礎架設 11 部 Bonus 450 kW 風機（共 4.95 MW），成為世界第一座離岸風場。它運轉超過 25 年、累計發電約 243 GWh，證明風機能在海上長期可靠發電。2002 年完工的 Horns Rev 1（80 部 2 MW、共 160 MW）則被視為第一座大型離岸風場。",
+      "1991 年，丹麥在洛蘭島外約 1.5–3 公里、水深僅數公尺的淺海，以混凝土重力式基礎架設 11 部 450 kW 風機（共 4.95 MW），成為世界第一座離岸風場。它運轉超過 25 年、累計發電約 243 GWh，證明風機能在海上長期可靠發電。2002 年完工的 Horns Rev 1（80 部 2 MW、共 160 MW）則被視為第一座大型離岸風場。",
     facts: [
       "11 部風機排成兩列，輪轂高約 38 公尺、轉子直徑約 35 公尺。",
       "塔架密封並以空調控制機艙內濕度，以對抗海上鹽霧。",
       "2017 年除役，其中一部風機送進丹麥能源博物館展示。",
     ],
-    specs: "11 × Bonus 450 kW = 4.95 MW；三葉片上風式；混凝土沉箱（重力式）基礎；水深 2–7 m",
+    specs: "11 × 450 kW = 4.95 MW；三葉片上風式；混凝土沉箱（重力式）基礎；水深 2–7 m",
     sources: [
       { label: "Ørsted (2017) — The world's first offshore wind farm is retiring", url: "https://orsted.com/en/media/news/2017/03/the-worlds-first-offshore-wind-farm-is-retiring" },
       { label: "Wikipedia — Vindeby Offshore Wind Farm", url: "https://en.wikipedia.org/wiki/Vindeby_Offshore_Wind_Farm" },
@@ -492,13 +492,15 @@ export const ERAS = [
     facts: [
       "從浮筒底部到葉尖總高 253 公尺，其中 78 公尺在水下；轉子直徑 154 公尺。",
       "每條錨鏈長約 900 公尺、重約 400 噸。",
-      "運轉頭五年的平均容量因數約 54%。",
+      "營運商公布：運轉頭五年的平均容量因數約 54%。",
     ],
     specs: "5 × 6 MW（轉子 154 m）；單柱式浮筒長 91 m、直徑 14.4 m；3 條錨鏈＋吸力錨；水深 95–120 m",
     sources: [
       { label: "Equinor — Hywind Scotland", url: "https://www.equinor.com/energy/hywind-scotland" },
       { label: "offshoreWIND.biz (2017) — Scotland opens world's first floating wind farm", url: "https://offshorewind.biz/2017/10/18/scotland-set-to-open-worlds-first-floating-wind-farm" },
       { label: "Wikipedia — Hywind", url: "https://en.wikipedia.org/wiki/Hywind" },
+      { label: "OE Digital (2022) — World's first floating wind farm marks five years of operation", url: "https://www.oedigital.com/news/501857-world-s-first-floating-wind-farm-marks-five-years-of-operation" },
+      { label: "OE Digital — How to stop floating wind turbines from drifting away", url: "https://www.oedigital.com/news/505313-how-to-stop-skyscraper-sized-floating-wind-turbines-from-drifting-away" },
     ],
     style: '扁平資訊圖表',
     styleEn: 'Flat infographic',
@@ -520,7 +522,7 @@ export const ERAS = [
     facts: [
       "海洋風電位於苗栗外海約 6 公里、水深 15–30 公尺，第二階段為 20 部 6 MW 風機。",
       "大彰化東南及西南（第一階段）900 MW 於 2024 年全數併網；海龍風場採用 14 MW 風機。",
-      "經濟部規劃 2030 年累計 10.9 GW、2035 年 18.3–19.9 GW。",
+      "經濟部預計 2030 年累計 10.9 GW，並規劃 2035 年達 18.3–19.9 GW。",
     ],
     specs: "Formosa 1：22 部（2 × 4 MW ＋ 20 × 6 MW）＝ 128 MW；單樁基礎；三葉片上風式",
     sources: [
@@ -559,7 +561,7 @@ export const ERAS = [
       { label: "GWEC (2026) — Global wind installations rise a record 40%", url: "https://www.gwec.net/news/global-wind-installations-rise-record-40-as-industry-charts-way-out-of-energy-crisis" },
       { label: "Ember — World electricity data", url: "https://ember-energy.org/countries-and-regions/world/" },
     ],
-    style: '數位雙生線框',
+    style: '數位孿生線框',
     styleEn: 'Digital-twin wireframe',
     palette: ['#05121f', '#21e6c1', '#278ea5', '#1f4287', '#e6f7ff'],
     frame: { family: 'screen', color: '#0b1520', accent: '#21e6c1' },
@@ -575,13 +577,13 @@ export const ERAS = [
     en: "AI Agents Join Wind O&M",
     caption: "讀 SCADA、查 SOP、附上依據，但不碰控制：唯讀優先",
     description:
-      "風機上的 SCADA 系統持續記錄風速、功率、溫度與警報，齒輪箱、軸承等傳動系統則靠振動、油液等狀態監測及早發現劣化；機器學習、數位分身與無人機檢測，正推動維運從「壞了再修」走向「預測性維護」。本站描繪的是本專案 wind-agent-30 的構想：AI Agent 讀取設備資料、檢索 SOP、附上依據提出建議，但預設唯讀、不對設備下指令——爬塔與更換零件，仍由受過訓練的技術人員完成。",
+      "風機上的 SCADA 系統持續記錄風速、功率、溫度與警報，齒輪箱、軸承等傳動系統則靠振動、油液等狀態監測及早發現劣化；機器學習、數位孿生與無人機檢測，正推動維運從「壞了再修」走向「預測性維護」。本站描繪的是本專案 wind-agent-30 的構想：AI Agent 讀取設備資料、檢索 SOP、附上依據提出建議，但預設唯讀、不對設備下指令——爬塔與更換零件，仍由受過訓練的技術人員完成。",
     facts: [
       "多數資料驅動的監測研究使用 10 分鐘平均的 SCADA 資料。",
       "IEC 61400-25 系列標準規範風力發電廠監控系統的通訊。",
       "2026 年 1 月，RWE 等公布在丹麥 Rødsand 2 離岸風場示範：無人機在葉片轉動中自主檢測，AI 自動標示損傷。",
     ],
-    specs: "SCADA（10 分鐘資料）＋狀態監測（振動、油液）＋機器學習／數位分身；本專案：Claude × MCP，唯讀優先",
+    specs: "SCADA（10 分鐘資料）＋狀態監測（振動、油液）＋機器學習／數位孿生；本專案：Claude × MCP，唯讀優先",
     sources: [
       { label: "Pandit et al. (2023), Wind Engineering — SCADA data review", url: "https://strathprints.strath.ac.uk/id/eprint/82511" },
       { label: "IEC 61400-25 series", url: "https://webstore.iec.ch/publication/61087" },

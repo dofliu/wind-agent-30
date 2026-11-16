@@ -29,13 +29,13 @@
 | 10 | 1891 | 拉庫爾的風力實驗室 | 丹麥黃金時代油畫 |
 | 11 | 1920–1931 | 空氣動力學登場 | 工程藍圖 |
 | 12 | 1941 | 史密斯–帕特南風機 | 1940 年代黑白新聞片 |
-| 13 | 1957 | 蓋瑟風機與丹麥概念 | 北歐中世紀現代主義海報 |
+| 13 | 1957 | 蓋瑟風機與丹麥概念 | 北歐世紀中期現代主義海報 |
 | 14 | 1973–1978 | 石油危機與特溫風機 | 1970 年代絲網印刷海報 |
 | 15 | 1980s | 加州風潮 | 1980 年代合成器浪潮霓虹 |
 | 16 | 1991 | 第一座離岸風場 | 1990 年代像素遊戲 |
 | 17 | 2017 | 浮動式離岸風場 | 扁平資訊圖表 |
 | 18 | 2019 | 台灣離岸風電 | 台灣花布與廟宇彩繪 |
-| 19 | 2019–2026 | 巨型風機時代 | 數位雙生線框 |
+| 19 | 2019–2026 | 巨型風機時代 | 數位孿生線框 |
 | 20 | 2026 | AI Agent 走進風機現場 | 終端機與 HMI 介面 |
 
 每一站的說明、規格與**資料來源**都在 `src/data/eras.js`，播放器下方的說明卡與 `gallery.html` 會顯示出來。
@@ -64,6 +64,7 @@ npm install                                         # 只裝 esbuild（打包用
 node tools/shot.mjs film 10 out/frame.png           # 任一時刻的整格畫面
 node tools/shot.mjs panel nile 0,4,7.9 out/nile --timing   # 單一時代畫框 + 效能
 node tools/sheet.mjs                                # 二十站縮圖總表 out/sheet.png
+node tools/check-audio.mjs                          # 配樂量測（響度、峰值、確定性 --determinism）
 node tools/render-audio.mjs                         # 匯出配樂 out/soundtrack.wav
 node tools/render.mjs --fps 30 --audio out/soundtrack.wav   # 輸出 MP4（需要 ffmpeg）
 node tools/build.mjs                                # dist/ 單檔版 index / gallery / render
