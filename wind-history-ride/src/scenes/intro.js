@@ -85,7 +85,7 @@ export function renderIntroOverlay(ctx, t) {
   ctx.globalAlpha = alpha * subA;
   ctx.font = `500 40px ${FONT.sans}`;
   ctx.fillStyle = '#b9d7e2';
-  ctx.fillText('風力發電五千年 · 二十站騎行時間軸', VIEW_W / 2, 548);
+  ctx.fillText('從一面帆到一座風場 · 風能利用五千年', VIEW_W / 2, 548);
   ctx.font = `italic 500 30px ${FONT.garamond}`;
   ctx.fillStyle = '#8fb3c2';
   ctx.fillText('Riding the Wind — A Cycling History of Wind Power', VIEW_W / 2, 598);
