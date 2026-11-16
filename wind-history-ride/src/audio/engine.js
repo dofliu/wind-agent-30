@@ -11,14 +11,14 @@
 //
 // Render pipeline (deterministic: seeded PRNGs only, no Math.random, no timers in the DSP):
 //   1. score.js turns the leitmotif into 22 sections (intro, 20 eras, outro) of note events.
-//   2. Notes are synthesised as precomputed buffers (instruments.js: Karplus–Strong strings,
-//      modal bars/bells, FM, subtractive synths, noise percussion) — in a small pool of
-//      Web Workers when available (module worker in dev, Blob-URL classic worker in the
-//      single-file build), otherwise on the main thread in ~20 ms slices. Both paths give
-//      bit-identical samples.
-//   3. Each section is mixed into a dry stem plus hall/room reverb sends with per-track
-//      FX (vibraphone tremolo, ping-pong delay, side-chain ducking).
-//   4. Each section's reverb sends are rendered by its own OfflineAudioContext through
+//   2. Each section is synthesised (instruments.js: Karplus–Strong strings, modal bars and
+//      bells, FM, subtractive synths, noise percussion) and mixed (mix.js) into a dry stem
+//      plus hall/room reverb sends with per-track FX (vibraphone tremolo, ping-pong delay,
+//      side-chain ducking) — in a small pool of Web Workers when available (module worker
+//      in dev, Blob-URL classic worker in the single-file build), otherwise on the main
+//      thread in ~20 ms slices. Both paths give bit-identical stems.
+//   3. (The wind bed is generated in a worker meanwhile.)
+//   4. The reverb sends of every 4 sections are rendered by one OfflineAudioContext through
 //      two ConvolverNodes with procedurally generated impulse responses (at half rate:
 //      reverb tails carry little above 10 kHz, and it quarters the convolution cost).
 //   5. Stems are loudness-matched per era (K-weighted RMS) and overlap-added: each era's
@@ -122,7 +122,7 @@ function makeIR(sr, { seconds, rt60, predelay, bright, dark, early, seed }) {
 }
 
 // -----------------------------------------------------------------------------
-// Worker pool for note synthesis (falls back to the main thread when unavailable)
+// Worker pool for section mixing + wind (falls back to the main thread when unavailable)
 // -----------------------------------------------------------------------------
 // Where the worker comes from:
 //   - single-file build (tools/build.mjs): the worker bundle is injected as a string in
@@ -465,6 +465,8 @@ export async function renderSoundtrack(sampleRate = 48000, opts = {}) {
     const stats = [];
 
     let c0 = clock();
+    // leave two cores to the page (animation, compositor) and the reverb render thread: on a
+    // 4-core machine 2 workers render faster *and* stutter less than 3 (measured)
     const hc = typeof navigator !== 'undefined' && navigator.hardwareConcurrency ? navigator.hardwareConcurrency : 2;
     pool = opts.workers === false ? null : await SynthPool.create(clamp(hc - 2, 1, 3));
     const workerCount = pool ? pool.workers.length : 0;
@@ -866,7 +868,7 @@ export function createAudioEngine() {
         renderPromise = (async () => {
           // let the first frame paint and the player boot before the heavy lifting
           await new Promise((r) => setTimeout(r, 250));
-          buffer = await renderSoundtrack(44100);
+          buffer = await renderSoundtrack(44100, { budgetMs: 12 }); // short slices: the player animates meanwhile
           ready = true;
           fire(readyCbs);
           readyCbs.length = 0;

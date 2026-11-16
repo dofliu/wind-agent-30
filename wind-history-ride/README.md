@@ -64,6 +64,7 @@ npm install                                         # 只裝 esbuild（打包用
 node tools/shot.mjs film 10 out/frame.png           # 任一時刻的整格畫面
 node tools/shot.mjs panel nile 0,4,7.9 out/nile --timing   # 單一時代畫框 + 效能
 node tools/sheet.mjs                                # 二十站縮圖總表 out/sheet.png
+node tools/check-audio.mjs                          # 配樂量測（響度、峰值、確定性 --determinism）
 node tools/render-audio.mjs                         # 匯出配樂 out/soundtrack.wav
 node tools/render.mjs --fps 30 --audio out/soundtrack.wav   # 輸出 MP4（需要 ffmpeg）
 node tools/build.mjs                                # dist/ 單檔版 index / gallery / render
