@@ -40,3 +40,24 @@ const galleryJs = await bundle('src/gallery.js');
 inline('index.html', playerJs, 'index.html');
 inline('render.html', playerJs, 'render.html');
 inline('gallery.html', galleryJs, 'gallery.html');
+
+// dist/artifact/: the same player + gallery shaped for hosting as a claude.ai Artifact.
+// The host wraps the main page in its own <!doctype><html><head><body> skeleton, so the
+// player page drops those tags and keeps only <title>, metas, links, <style> and the app.
+const ART = path.join(DIST, 'artifact');
+fs.mkdirSync(ART, { recursive: true });
+let page = fs.readFileSync(path.join(DIST, 'index.html'), 'utf8');
+page = page
+  .replace(/<!doctype html>\s*/i, '')
+  .replace(/<html[^>]*>\s*/i, '')
+  .replace(/<\/html>\s*/i, '')
+  .replace(/<head>\s*/i, '')
+  .replace(/<\/head>\s*/i, '')
+  .replace(/<body[^>]*>\s*/i, '')
+  .replace(/<\/body>\s*/i, '')
+  .replace(/<meta charset="utf-8" \/>\s*/i, '')
+  .replace(/<meta name="viewport"[^>]*>\s*/i, '')
+  .replace(/<title>[^<]*<\/title>/i, '<title>乘風騎行</title>\n  <meta name="claude:viewport-fit-sides" content="cover" />');
+fs.writeFileSync(path.join(ART, 'index.html'), page);
+fs.copyFileSync(path.join(DIST, 'gallery.html'), path.join(ART, 'gallery.html'));
+console.log(`dist/artifact/index.html  ${(fs.statSync(path.join(ART, 'index.html')).size / 1024).toFixed(0)} KiB (+ gallery.html)`);

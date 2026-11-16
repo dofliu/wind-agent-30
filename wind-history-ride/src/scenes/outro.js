@@ -123,7 +123,8 @@ export function renderOutro(ctx, kit, localT, renderScenePanel) {
     ctx.fillText(s.ruler, x, labelY);
     ctx.font = `500 15px ${FONT.sans}`;
     ctx.fillStyle = '#b8b0a0';
-    const short = s.zh.length > 9 ? s.zh.slice(0, 9) + '…' : s.zh;
+    let short = s.zh;
+    while (short.length > 2 && ctx.measureText(short).width > 164) short = short.slice(0, -2) + '…';
     ctx.fillText(short, x, labelY + (up ? -22 : 22));
   }
   ctx.globalAlpha = 1;
