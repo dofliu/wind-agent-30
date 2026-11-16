@@ -1,22 +1,31 @@
-// src/audio/synth-worker.js — module Web Worker that renders note buffers (and the wind
-// bed) off the main thread. Pure functions of their inputs, so results are bit-identical
-// to the main-thread fallback path in engine.js.
-import { renderKey } from './instruments.js';
+// src/audio/synth-worker.js — Web Worker that mixes whole score sections (synthesising their
+// notes) and renders the wind bed off the main thread. Pure functions of their inputs, so
+// results are bit-identical to the main-thread fallback path in engine.js (same mix.js).
+//
+// Dev: started as a module worker (new URL('./synth-worker.js', import.meta.url)).
+// Single-file build: tools/build.mjs bundles this file as an IIFE, injects it as a string
+// (window.__WIND_SYNTH_WORKER_SRC__) and engine.js starts it as a classic Blob-URL worker.
+// It deliberately imports no score / era data: jobs carry their events and the wind table.
+import { mixSection, busTransfer } from './mix.js';
 import { WindGen } from './foley.js';
-import { windinessAt } from './score.js';
 
-self.onmessage = (e) => {
-  const msg = e.data;
+const scratch = { L: new Float32Array(0), R: new Float32Array(0) };
+
+self.onmessage = async (e) => {
+  const msg = e.data || {};
   try {
     if (msg.type === 'ping') {
       self.postMessage({ type: 'pong', id: msg.id });
-    } else if (msg.type === 'notes') {
-      const bufs = msg.jobs.map((j) => renderKey(j.key, msg.sr, j.p));
-      self.postMessage({ type: 'notes', id: msg.id, keys: msg.jobs.map((j) => j.key), bufs }, bufs.map((b) => b.buffer));
+    } else if (msg.type === 'mix') {
+      // no awaits happen inside (no yielder), so jobs never interleave on `scratch`
+      const bus = await mixSection(msg.sec, msg.sr, scratch);
+      self.postMessage({ type: 'mix', id: msg.id, bus }, busTransfer(bus));
     } else if (msg.type === 'wind') {
-      const w = new WindGen(msg.sr, msg.length, windinessAt, msg.seed);
+      const w = new WindGen(msg.sr, msg.length, msg.table, msg.seed);
       while (!w.process(1 << 16));
       self.postMessage({ type: 'wind', id: msg.id, L: w.L, R: w.R }, [w.L.buffer, w.R.buffer]);
+    } else {
+      self.postMessage({ type: 'error', id: msg.id, message: `unknown job ${msg.type}` });
     }
   } catch (err) {
     self.postMessage({ type: 'error', id: msg.id, message: String((err && err.stack) || err) });

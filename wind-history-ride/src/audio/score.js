@@ -32,7 +32,7 @@ const PROG = {
   major: [[0, 2, 4], [3, 5, 7], [4, 6, 8, 10], [0, 2, 4]], // I  IV  V7  I
   dorian: [[0, 2, 4], [3, 5, 7], [4, 6, 8], [0, 2, 4]], // i  IV  v   i
   mixolydian: [[0, 2, 4], [3, 5, 7], [4, 6, 8], [0, 2, 4]], // I  IV  v   I
-  natural_minor: [[0, 2, 4], [3, 5, 7], [4, 6, 8], [0, 2, 4]], // i  iv  v   i
+  natural_minor: [[0, 2, 4], [3, 5, 7], [2, 4, 6, 8], [0, 2, 4]], // i  iv  IIImaj7  i (synthwave)
   lydian: [[0, 2, 4, 8], [1, 3, 5, 7], [4, 6, 8], [0, 2, 4, 5]], // Iadd9  II7  V  I6
   phrygian_dominant: [[0, 2, 4], [3, 5, 7], [0, 2, 6, 8], [0, 2, 4]], // I  iv  I7(b9)  I
   dastgah_shur: [[0, 4], [3, 7], [4, 8], [0, 4]], // drone eras: only used for virtual roots
@@ -171,6 +171,16 @@ function harmonyBelow(c, n) {
 
 const at = (V, i) => V[((i % V.length) + V.length) % V.length] + 12 * Math.floor(i / V.length);
 
+/** Index of the first of the next `look` melody notes a semitone (or less) away from note i, or -1. */
+function rubIndex(mel, i, look = 2) {
+  for (let k = 1; k <= look && i + k < mel.length; k++) {
+    const d = Math.abs(mel[i + k].midi - mel[i].midi);
+    if (d > 0 && d <= 1.01) return i + k;
+  }
+  return -1;
+}
+const rubsAhead = (mel, i, look = 2) => rubIndex(mel, i, look) >= 0;
+
 function strum(A, tr, voice, b, notes, vel, dur, dir = 'd', spread = 0.03, p) {
   const order = dir === 'd' ? notes : [...notes].reverse();
   order.forEach((m, k) => A.note(tr, voice, b + k * spread, Math.max(0.05, dur - k * spread), m, vel * (1 - k * 0.06), { p, pan: (k / Math.max(1, order.length - 1) - 0.5) * 0.3 }));
@@ -189,17 +199,20 @@ const T = (gain, pan = 0, hall = 0, room = 0, fx) => ({ gain, pan, hall, room, f
 const ERA_ARR = {
   // 01 Egyptian harp, Phrygian dominant, reed drone, frame drum (maqsum)
   nile(A, c) {
-    for (const n of c.mel(0)) {
-      A.note('lead', 'harp', n.b, n.d, n.midi, n.vel, { pan: 0.1 });
+    const mel = c.mel(0);
+    mel.forEach((n, i) => {
+      // the harpist stops a string whose neighbour a semitone away is about to sound (A->Bb, Eb->D)
+      A.note('lead', 'harp', n.b, n.d, n.midi, n.vel, { pan: 0.1, p: rubsAhead(mel, i) ? { damp: 0.3 } : undefined });
       if (n.l >= 3) A.note('lead', 'harp', n.b - 0.06, 0.2, c.m(n.deg - 3), n.vel * 0.45, { pan: 0.1 }); // grace from the fifth below
-    }
+    });
     // final rolled chord
     [0, 2, 4].forEach((d, k) => A.note('comp', 'harp', 14 + k * 0.08, 2, c.m(d, -1), 0.5));
     const V = c.voicings(45, 62);
     pattern(A, 'comp', 'harp', V, [[0, 0, 1, 0.55], [1, 1, 1, 0.42], [2, 2, 1, 0.48], [3, 1, 0.5, 0.4], [3.5, 0, 0.5, 0.36]], [0, 1, 2], { pan: -0.35 });
     A.note('comp', 'harp', 12, 1, c.root(3) + 12, 0.5, { pan: -0.35 });
+    // arghul-style drone on the tonic only (a fifth drone would grind against the Bb of the iv bar)
     A.note('drone', 'drone', 0, 16, 50, 0.6);
-    A.note('drone', 'drone', 0, 16, 57, 0.45);
+    A.note('drone', 'drone', 0, 16, 38, 0.42);
     for (let bar = 0; bar < 4; bar++) {
       const B = bar * 4;
       A.hit('perc', 'frameDum', B, 0.9);
@@ -220,13 +233,17 @@ const ERA_ARR = {
 
   // 02 Santur in dastgah Shur, drone, tombak
   persia(A, c) {
-    for (const n of c.mel(0)) {
-      if (n.s % 8 === 0) A.note('lead', 'santur', n.b - 0.09, 0.1, c.m(n.deg + 1), n.vel * 0.42);
+    const mel = c.mel(0);
+    mel.forEach((n, i) => {
+      if (n.s % 8 === 0) A.note('lead', 'santur', n.b - 0.09, 0.1, c.m(n.deg + 1), n.vel * 0.42, { p: { ring: 0.2 } }); // grace: short ring
+      // the santur rings undamped (~1.8 s), except that a string is stilled as a semitone neighbour sounds
+      const j = rubIndex(mel, i, 3);
+      const ringP = j >= 0 ? { ring: Math.round(((mel[j].b - n.b) * BEAT_SEC + 0.05) * 1000) / 1000 } : undefined;
       if (n.l >= 2) {
         const k = Math.round(n.d / 0.25);
-        for (let j = 0; j < k; j++) A.note('lead', 'santur', n.b + j * 0.25, 0.25, n.midi, n.vel * (j === 0 ? 1 : j % 2 ? 0.55 : 0.68) * (1 - j * 0.03), { p: j < k - 1 ? { ring: 0.55 } : undefined });
-      } else A.note('lead', 'santur', n.b, n.d, n.midi, n.vel);
-    }
+        for (let j = 0; j < k; j++) A.note('lead', 'santur', n.b + j * 0.25, 0.25, n.midi, n.vel * (j === 0 ? 1 : j % 2 ? 0.55 : 0.68) * (1 - j * 0.03), { p: j < k - 1 ? { ring: 0.55 } : ringP });
+      } else A.note('lead', 'santur', n.b, n.d, n.midi, n.vel, { p: ringP });
+    });
     const lh = [[0, 50, 0.6], [1, 62, 0.42], [1.5, 62, 0.32], [2, 50, 0.55], [3, 57, 0.45], [3.5, 62, 0.32]];
     for (let bar = 0; bar < 4; bar++)
       for (const [o, m, v] of lh) {
@@ -403,7 +420,7 @@ const ERA_ARR = {
       for (const o of [1, 3]) A.hit('perc', 'wbScrape', bar * 4 + o, 0.6, { pan: 0.3 });
     }
     A.hit('perc', 'wbScrape', -0.5, 0.4, { pan: 0.3 });
-    A.note('lead', 'banjo', -0.5, 0.5, 67, 0.5, { pan: 0.15 });
+    A.note('lead', 'banjo', -0.5, 0.5, 66, 0.5, { pan: 0.15 }); // pickup on F#: era 07's D chord is still ringing
     return { tracks: { lead: T(1, 0.15, 0.08, 0.24), comp: T(0.5, -0.3, 0.06, 0.22), bass: T(0.72, -0.05, 0.05, 0.2), perc: T(0.7, 0.3, 0.05, 0.18) } };
   },
 
@@ -413,8 +430,8 @@ const ERA_ARR = {
     for (let bar = 0; bar < 4; bar++) A.note('lead', 'musicbox', bar * 4, 1, c.root(bar) + 24, 0.45, { pan: -0.1 });
     const V = c.voicings(52, 67);
     for (let bar = 0; bar < 4; bar++) {
-      V[bar].forEach((m) => A.note('comp', 'organ', bar * 4, bar === 3 ? 3.6 : 3.95, m, 0.5));
-      A.note('bass', 'organ', bar * 4, bar === 3 ? 3.6 : 3.95, c.root(bar), 0.55);
+      V[bar].forEach((m) => A.note('comp', 'organ', bar * 4, bar === 3 ? 3.6 : 3.8, m, 0.5));
+      A.note('bass', 'organ', bar * 4, bar === 3 ? 3.6 : 3.8, c.root(bar), 0.55);
     }
     for (let k = 0; k < 32; k++) A.hit('fx', 'tick', k * 0.5, k % 2 ? 0.15 : 0.22, { pan: 0.45 });
     for (const o of [-0.9, -0.72, -0.54, -0.36]) A.hit('fx', 'ratchet', o, 0.45, { pan: 0.3 });
@@ -428,7 +445,7 @@ const ERA_ARR = {
       if (n.s === 12) A.note('lead', 'fiddle', n.b - 0.07, 0.07, c.m(n.deg + 1), n.vel * 0.5, { pan: 0.15 });
       A.note('lead', 'fiddle', n.b, n.d * (n.l >= 2 ? 0.95 : 0.85), n.midi, n.vel, { pan: 0.15, p });
       if (n.s === 4) A.note('lead', 'fiddle', n.b, n.d * 0.95, 69, 0.38, { pan: 0.15 });
-      if (n.s === 28) A.note('lead', 'fiddle', n.b, n.d * 0.95, 69, 0.34, { pan: 0.15 });
+      if (n.s === 28) A.note('lead', 'fiddle', n.b, n.d * 0.78, 69, 0.34, { pan: 0.15 }); // lifts before era 11's G#->A pickup
     }
     const V = c.voicings(55, 69);
     for (let bar = 0; bar < 4; bar++) {
@@ -490,7 +507,8 @@ const ERA_ARR = {
 
   // 13 1957 cool jazz: vibraphone (motor tremolo), rootless piano comping, walking bass, brushes (Lydian, swung)
   gedser(A, c) {
-    for (const n of c.mel(0)) A.note('lead', 'vibes', n.b, n.d, n.midi, n.vel, { pan: 0.12 });
+    const mel = c.mel(0);
+    mel.forEach((n, i) => A.note('lead', 'vibes', n.b, n.d, n.midi, n.vel, { pan: 0.12, p: rubsAhead(mel, i) ? { pedal: 0.04 } : undefined }));
     const harm = [[2, 4, 5, 8], [1, 3, 5, 7], [6, 8, 12], [2, 4, 5, 8]];
     let prev = null;
     harm.forEach((degs, bar) => {
@@ -509,14 +527,18 @@ const ERA_ARR = {
 
   // 14 1970s: analog mono lead with glide, string machine, octave disco bass, four-on-the-floor (Dorian)
   tvind(A, c) {
-    let last = null;
-    for (const n of c.mel(0)) {
-      const legato = last && Math.abs(last.b + last.d - n.b) < 1e-6 && Math.abs(last.midi - n.midi) <= 4;
-      A.note('lead', 'analog', n.b, n.d * 0.95, n.midi, n.vel, { p: legato ? { from: last.midi } : undefined });
-      last = n;
-    }
+    const mel = c.mel(0);
+    const legato = (a, b) => !!(a && b) && Math.abs(a.b + a.d - b.b) < 1e-6 && Math.abs(a.midi - b.midi) <= 4;
+    mel.forEach((n, i) => {
+      const p = {};
+      if (legato(mel[i - 1], n)) p.from = mel[i - 1].midi; // portamento from the previous pitch
+      const tied = legato(n, mel[i + 1]);
+      if (tied) p.rel = 0.012; // mono synth: no release tail under the next note's glide
+      A.note('lead', 'analog', n.b, tied ? n.d : n.d * 0.95, n.midi, n.vel, { p: Object.keys(p).length ? p : undefined });
+    });
     const V = c.voicings(50, 67);
-    V.forEach((ch, bar) => ch.forEach((m, k) => A.note('comp', 'strpad', bar * 4, bar === 3 ? 3.6 : 3.9, m, 0.55, { pan: (k - 1) * 0.35 })));
+    // string machine re-bowed per bar; released just before the bar line (B->C, E->F voice leading)
+    V.forEach((ch, bar) => ch.forEach((m, k) => A.note('comp', 'strpad', bar * 4, bar === 3 ? 3.4 : 3.5, m, 0.55, { pan: (k - 1) * 0.35, p: { rel: 0.3 } })));
     for (let bar = 0; bar < 4; bar++) {
       for (let k = 0; k < 8; k++) {
         if (bar === 3 && k >= 6) continue;
@@ -539,7 +561,8 @@ const ERA_ARR = {
     for (const n of c.mel(0)) A.note('lead', 'supersaw', n.b, n.d * 0.92, n.midi, n.vel);
     const V = c.voicings(50, 67);
     // last chord released a beat early so the minor third has gone before the next era's major downbeat
-    V.forEach((ch, bar) => ch.forEach((m, k) => A.note('comp', 'pad', bar * 4, bar === 3 ? 2.5 : 3.9, m, 0.55, { pan: (k - 1) * 0.4, p: { att: 0.15, rel: 0.5 } })));
+    // and every chord lets go just before the next one (A->Bb, Bb->A, E->F voice leading)
+    V.forEach((ch, bar) => ch.forEach((m, k) => A.note('comp', 'pad', bar * 4, bar === 3 ? 2.5 : 3.4, m, 0.55, { pan: ((k / Math.max(1, ch.length - 1)) - 0.5) * 0.8, p: { att: 0.15, rel: 0.3 } })));
     for (let bar = 0; bar < 4; bar++) {
       for (let k = 0; k < 8; k++) {
         if (bar === 3 && k >= 6) continue;
@@ -573,16 +596,24 @@ const ERA_ARR = {
 
   // 17 2017 floating offshore: FM bells over an evolving pad, sub, soft clicks (Lydian, spacious)
   hywind(A, c) {
-    for (const n of c.mel(1)) A.note('lead', 'bell', n.b, n.d, n.midi, n.vel * 0.92, { pan: 0.1, p: n.l >= 2 ? { long: 1 } : undefined });
+    // long notes ring on; eighth notes are damped, and any note with a semitone neighbour coming
+    // up (C#-D, G#-A) is stopped as that neighbour sounds, so the bells never pile into clusters
+    const mel = c.mel(1);
+    mel.forEach((n, i) => {
+      const p = n.l >= 2 ? { long: 1 } : { damp: 0.35 };
+      if (rubsAhead(mel, i)) p.damp = 0.04;
+      A.note('lead', 'bell', n.b, n.d, n.midi, n.vel * 0.92, { pan: 0.1, p });
+    });
     const V = c.voicings(55, 74);
-    V.forEach((ch, bar) => ch.forEach((m, k) => A.note('comp', 'pad', bar * 4, bar === 3 ? 3.6 : 4.1, m, 0.5, { pan: (k / (ch.length - 1) - 0.5) * 0.8, p: { att: 0.5, rel: 1.0 } })));
+    // slow pads that hand over at the bar line (released 0.35 s early, new chord swells in over 0.5 s)
+    V.forEach((ch, bar) => ch.forEach((m, k) => A.note('comp', 'pad', bar * 4, bar === 3 ? 3.6 : 3.3, m, 0.5, { pan: (k / (ch.length - 1) - 0.5) * 0.8, p: { att: 0.5, rel: 0.6 } })));
     for (let bar = 0; bar < 4; bar++) {
       A.note('bass', 'sub', bar * 4, bar === 3 ? 3.4 : 3.9, c.root(bar), 0.62);
       A.hit('perc', 'kickSoft', bar * 4, 0.45);
       for (const o of [1, 3]) A.hit('perc', 'rim', bar * 4 + o, 0.32, { pan: -0.25 });
       for (let k = 0; k < 8; k++) A.hit('perc', 'shaker', bar * 4 + k * 0.5, k % 2 ? 0.16 : 0.24, { pan: 0.35 });
     }
-    A.hit('perc', 'swell', -1.1, 0.45);
+    A.hit('perc', 'swell', -1, 0.45);
     return { tracks: { lead: T(1, 0.1, 0.5, 0, { delay: { time: 0.75, fb: 0.35, mix: 0.18, pingpong: true } }), comp: T(0.36, 0, 0.5), bass: T(0.42, 0, 0), perc: T(0.75, 0, 0.3, 0.2) } };
   },
 
@@ -612,13 +643,18 @@ const ERA_ARR = {
 
   // 19 2020s giants: pluck lead + 16th arps, side-chained supersaw pad and sub, modern electro drums (Lydian)
   giants(A, c) {
-    for (const n of c.mel(1)) A.note('lead', 'pluck', n.b, n.d, n.midi, n.vel, { p: n.l >= 2 ? { long: 1 } : undefined });
+    const mel = c.mel(1);
+    mel.forEach((n, i) => {
+      const p = n.l >= 2 ? { long: 1 } : {};
+      if (rubsAhead(mel, i)) p.gate = 0.03; // gate closes before a semitone neighbour
+      A.note('lead', 'pluck', n.b, n.d, n.midi, n.vel, { p: Object.keys(p).length ? p : undefined });
+    });
     const V = c.voicings(57, 74);
     const seq = [0, 1, 2, 1];
     for (let bar = 0; bar < 4; bar++) {
       const steps = bar === 3 ? 8 : 16;
       for (let k = 0; k < steps; k++) A.note('comp', 'pluck', bar * 4 + k * 0.25, 0.22, at(V[bar], seq[k % 4] + (k % 8 >= 4 ? 1 : 0)), k % 4 === 0 ? 0.55 : 0.4, { pan: k % 2 ? 0.35 : -0.35 });
-      V[bar].forEach((m, k) => A.note('pad', 'supersaw', bar * 4, bar === 3 ? 3.5 : 3.95, m - 12, 0.5, { pan: (k - 1) * 0.4, p: { att: 0.06, rel: 0.3 } }));
+      V[bar].forEach((m, k) => A.note('pad', 'supersaw', bar * 4, bar === 3 ? 3.5 : 3.6, m - 12, 0.5, { pan: (k - 1) * 0.4, p: { att: 0.06, rel: 0.3 } }));
       A.note('bass', 'sub', bar * 4, bar === 3 ? 3.4 : 3.9, c.root(bar), 0.7);
       for (let k = 0; k < 4; k++) A.hit('perc', 'kick', bar * 4 + k, 0.85);
       for (const o of [1, 3]) A.hit('perc', 'clap', bar * 4 + o, 0.62);
@@ -664,10 +700,12 @@ const RELAY = ['harp', 'santur', 'recorder', 'guitar', 'harpsichord', 'guzheng',
 function intro(A) {
   // bars 1–2: wind + wind chimes, a slow pad swell; bar 2: flute states the motif's first bar;
   // bar 3: IV -> V turnaround while the bicycle bell rings and the rider sets off (4.0 s).
-  [50, 57, 62, 66].forEach((m, k) => A.note('pad', 'pad', 0.5, 7.5, m, 0.5, { pan: (k - 1.5) * 0.25, p: { att: 1.4, rel: 0.6 } }));
-  [55, 59, 62].forEach((m, k) => A.note('pad', 'pad', 8, 2, m, 0.48, { pan: (k - 1) * 0.3, p: { att: 0.25, rel: 0.4 } }));
-  [57, 61, 64].forEach((m, k) => A.note('pad', 'pad', 10, 2, m, 0.48, { pan: (k - 1) * 0.3, p: { att: 0.25, rel: 0.5 } }));
-  const fl = [[4, 1, 81], [5, 0.5, 78], [5.5, 0.5, 81], [6, 1.5, 86], [7.5, 0.5, 85], [8, 1, 83], [9, 0.5, 79], [9.5, 0.5, 83], [10, 1.7, 85]];
+  // Chord tones that would rub a semitone against the next chord let go just before it
+  // (F# before IV's G, IV before V's C#, V's C# before the harp's D sweep into era 01).
+  [50, 57, 62, 66].forEach((m, k) => A.note('pad', 'pad', 0.5, m === 66 ? 7 : 7.5, m, 0.5, { pan: (k - 1.5) * 0.25, p: { att: 1.4, rel: m === 66 ? 0.3 : 0.6 } }));
+  [55, 59, 62].forEach((m, k) => A.note('pad', 'pad', 8, 1.6, m, 0.48, { pan: (k - 1) * 0.3, p: { att: 0.25, rel: 0.25 } }));
+  [57, 61, 64].forEach((m, k) => A.note('pad', 'pad', 10, m === 61 ? 1.2 : 1.9, m, 0.48, { pan: (k - 1) * 0.3, p: { att: 0.25, rel: m === 61 ? 0.3 : 0.5 } }));
+  const fl = [[4, 1, 81], [5, 0.5, 78], [5.5, 0.5, 81], [6, 1.5, 86], [7.5, 0.5, 85], [8, 1, 83], [9, 0.5, 79], [9.5, 0.5, 83], [10, 1.4, 85]];
   fl.forEach(([b, d, m], k) => A.note('lead', 'recorder', b, d * 0.95, m, 0.5 + k * 0.015, { p: { soft: 1 } }));
   const chimes = [[0.6, 86, 0.32], [1.3, 93, 0.25], [1.75, 88, 0.3], [2.6, 90, 0.26], [3.1, 95, 0.2], [3.45, 86, 0.24], [6.8, 93, 0.16], [11.2, 90, 0.15]];
   chimes.forEach(([b, m, v], k) => A.note('chime', 'bell', b, 1, m, v, { pan: k % 2 ? 0.45 : -0.4 }));
@@ -690,7 +728,7 @@ function outro(A) {
   const seq = [0, 1, 2, 3, 2, 1, 2, 1];
   for (let bar = 0; bar < 4; bar++) {
     for (let k = 0; k < 8; k++) A.note('harp', 'harp', bar * 4 + k * 0.5, 0.5, at(V[bar], seq[k]), k % 2 ? 0.38 : 0.46, { pan: -0.3 });
-    V[bar].forEach((m, k) => A.note('pad', 'pad', bar * 4, 3.95, m, 0.42, { pan: (k - 1) * 0.35, p: { att: 0.3, rel: 0.6 } }));
+    V[bar].forEach((m, k) => A.note('pad', 'pad', bar * 4, 3.4, m, 0.42, { pan: (k - 1) * 0.35, p: { att: 0.3, rel: 0.4 } }));
     A.note('bass', 'cello', bar * 4, 1.9, c.root(bar) + 12, 0.5);
     A.note('bass', 'cello', bar * 4 + 2, 1.9, c.fifth(bar) + 12, 0.45);
     A.note('sub', 'sub', bar * 4, 3.9, c.root(bar), 0.5);
@@ -702,15 +740,16 @@ function outro(A) {
   // bar 5: IV -> V7 cadence with a tutti line
   const cad = [[16, 0.5, 83], [16.5, 0.5, 85], [17, 1, 86], [18, 1, 88], [19, 1, 85]];
   for (const [b, d, m] of cad) {
-    A.note('relay', 'violin', b, d * 0.95, m, 0.7, { pan: 0.15 });
-    A.note('relay', 'trumpet', b, d * 0.9, m - 12, 0.45, { pan: -0.1 });
-    A.note('relay', 'vibes', b, d, m, 0.38, { pan: 0.25 });
+    const lift = b === 19 ? 0.8 : 0.95; // the leading tone C# lets go before the final D
+    A.note('relay', 'violin', b, d * lift, m, 0.7, { pan: 0.15 });
+    A.note('relay', 'trumpet', b, d * Math.min(lift, 0.9), m - 12, 0.45, { pan: -0.1 });
+    A.note('relay', 'vibes', b, d * lift, m, 0.38, { pan: 0.25, p: { pedal: 0.04 } });
   }
   const IV = voiceChord('major', [3, 5, 7], 50, 67, V[3]);
   const V7 = voiceChord('major', [4, 6, 8, 10], 50, 67, IV);
   for (const [b, ch, root] of [[16, IV, 43], [18, V7, 45]]) {
     for (let k = 0; k < 4; k++) A.note('harp', 'harp', b + k * 0.5, 0.5, at(ch, seq[k]), 0.42, { pan: -0.3 });
-    ch.forEach((m, k) => A.note('pad', 'pad', b, 1.95, m, 0.45, { pan: (k - 1) * 0.35, p: { att: 0.2, rel: 0.4 } }));
+    ch.forEach((m, k) => A.note('pad', 'pad', b, 1.6, m, 0.45, { pan: (k - 1) * 0.35, p: { att: 0.2, rel: 0.25 } }));
     A.note('bass', 'cello', b, 1.9, root + 12, 0.5);
     A.note('sub', 'sub', b, 1.9, root, 0.5);
     A.hit('perc', 'frameDum', b, 0.55);
@@ -788,32 +827,28 @@ export function buildScore() {
   return sections;
 }
 
-/** Wind strength over the film (0..1), eased across era boundaries. */
+/**
+ * Wind strength over the film (0..1): strong at the very start (the wind comes first), the
+ * per-era level, then a lull that swells again under the final chord. Segments are blended
+ * with a 1.2 s smoothstep centred on every bar-line boundary (intro|01 … 20|outro), so the
+ * curve is continuous everywhere.
+ */
 export function windinessAt(t) {
   const n = ERAS.length;
-  const level = (idx) => (idx < 0 ? 0.9 : idx >= n ? 0.7 : ERA_WIND[ERAS[idx].id] ?? 0.5);
-  if (t < INTRO_SEC) {
-    const intro = 0.95 - 0.25 * clamp((t - 2) / 3, 0, 1);
-    const k = clamp((t - (INTRO_SEC - 1)) / 2, 0, 1);
-    return intro * (1 - k) + level(0) * k;
-  }
-  if (t >= OUTRO_START) {
-    const k = clamp((t - OUTRO_START + 1) / 2, 0, 1);
-    const end = 0.6 + 0.25 * clamp((t - 174) / 2, 0, 1);
-    return level(n - 1) * (1 - k) + end * k;
-  }
+  const level = (idx, tt) => {
+    if (idx < 0) return 0.95 - 0.25 * clamp((tt - 2) / 3, 0, 1); // intro: 0.95 -> 0.7
+    if (idx >= n) return 0.6 + 0.25 * clamp((tt - 174) / 2, 0, 1); // outro: 0.6 -> 0.85
+    return ERA_WIND[ERAS[idx].id] ?? 0.5;
+  };
   const x = (t - INTRO_SEC) / SCENE_SEC;
-  const i = Math.floor(x);
-  const f = x - i;
-  // 1.2 s smooth blend centred on each boundary
-  const w = 0.6 / SCENE_SEC;
-  if (f < w && i > 0) {
-    const k = 0.5 + (f / w) * 0.5;
-    return level(i - 1) * (1 - k * k * (3 - 2 * k)) + level(i) * k * k * (3 - 2 * k);
+  const seg = clamp(Math.floor(x), -1, n);
+  const kb = clamp(Math.round(x), 0, n); // nearest boundary
+  const dt = t - (INTRO_SEC + kb * SCENE_SEC);
+  const H = 0.6;
+  if (dt > -H && dt < H) {
+    const u = (dt + H) / (2 * H);
+    const s = u * u * (3 - 2 * u);
+    return level(kb - 1, t) * (1 - s) + level(kb, t) * s;
   }
-  if (f > 1 - w) {
-    const k = ((f - (1 - w)) / w) * 0.5;
-    return level(i) * (1 - k * k * (3 - 2 * k)) + level(i + 1) * k * k * (3 - 2 * k);
-  }
-  return level(i);
+  return level(seg, t);
 }

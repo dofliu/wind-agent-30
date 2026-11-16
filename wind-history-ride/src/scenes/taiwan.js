@@ -68,6 +68,27 @@ function h1(n) {
 const P = (x, y) => ({ x, y });
 const fract = (v) => v - Math.floor(v); // always in [0, 1), also for negative time
 
+// the plaque inscription (read right to left) is the only text in this panel
+const PLAQUE = '一帆風順';
+const PLAQUE_FONT = '700 40px "LXGW WenKai TC"';
+if (typeof document !== 'undefined' && document.fonts && document.fonts.load) {
+  try {
+    document.fonts.load(PLAQUE_FONT, PLAQUE).catch(() => {});
+  } catch (e) {
+    /* offline: system fallback */
+  }
+}
+let _fontsOk = false;
+function fontsReady() {
+  if (_fontsOk) return true;
+  try {
+    _fontsOk = document.fonts.check(PLAQUE_FONT, PLAQUE);
+    return _fontsOk;
+  } catch (e) {
+    return true;
+  }
+}
+
 function shoreY(x) {
   return SHORE + 4 * Math.sin(x * 0.013 + 0.5) + 2 * Math.sin(x * 0.041);
 }
@@ -403,7 +424,8 @@ function getSky(kit) {
 
 function getBeam(kit) {
   // the painted temple beam (樑枋彩繪) across the top, with a gilt plaque
-  return kit.bake('tw_beam_v1', S, BEAM.y1 + 4, (g, rng, w) => {
+  // keyed on font readiness: a bake made before the kai web font arrived is redone
+  return kit.bake(`tw_beam_v2_${fontsReady() ? 'f' : 'n'}`, S, BEAM.y1 + 4, (g, rng, w) => {
     const y0 = 22;
     const y1 = BEAM.y1;
     g.fillStyle = C.wine;
@@ -509,7 +531,7 @@ function getBeam(kit) {
     g.lineWidth = 1;
     g.strokeRect(px0 + 12, y0 + 14, px1 - px0 - 24, y1 - y0 - 28);
     // inscription, read right to left as on a temple plaque
-    const chars = ['一', '帆', '風', '順'];
+    const chars = [...PLAQUE];
     g.font = `700 40px ${kit.FONT.kai}`;
     g.textAlign = 'center';
     g.textBaseline = 'middle';

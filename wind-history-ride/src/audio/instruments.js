@@ -179,9 +179,12 @@ function piano(sr, f, dur, vel, p, rnd) {
 }
 
 function vibes(sr, f, dur, vel, p, rnd) {
-  const len = Math.ceil(sr * (Math.min(dur + 0.6, 2.8) + 0.2));
+  // the damper pedal is released ~0.3 s after the note (p.pedal overrides), so a passing
+  // tone does not ring into the next chord
+  const hold = Math.min(dur + (p.pedal ?? 0.3), 2.8);
+  const len = Math.ceil(sr * (hold + 0.2));
   const out = new Float32Array(len);
-  const offN = Math.round(Math.min(dur + 0.6, 2.8) * sr);
+  const offN = Math.round(hold * sr);
   addMode(out, sr, f, 1, 3.2, 0, offN, 0.25);
   addMode(out, sr, f * 3.98, 0.2 * (0.5 + vel), 1.0, 0, offN, 0.15);
   addMode(out, sr, f * 9.94, 0.06 * (0.4 + vel), 0.3, 0, offN, 0.1);
@@ -246,16 +249,23 @@ function fmKeys(sr, f, dur, vel, p, rnd) {
   return fadeEnds(out, sr, 0, 20);
 }
 
-/** Glassy FM bell (carrier:mod 1:3.5) for ambient eras, chimes and the outro. */
+/**
+ * Glassy FM bell (carrier:mod 1:3.5) for ambient eras, chimes and the outro.
+ * p.long: longer ring; p.damp: damped (T60 ≈ 0.25 s) that many seconds after the note ends,
+ * so short melody notes do not pile up into semitone clusters.
+ */
 function bell(sr, f, dur, vel, p, rnd) {
-  const L = p.long ? 3.6 : 2.6;
+  const L0 = p.long ? 3.6 : 2.6;
+  const offN = p.damp != null ? Math.round(Math.min(L0, dur + p.damp) * sr) : Infinity;
+  const L = p.damp != null ? Math.min(L0, dur + p.damp + 0.3) : L0;
   const len = Math.ceil(sr * L);
   const out = new Float32Array(len);
+  const kDamp = Math.exp(-1 / (0.036 * sr)); // ≈ 0.25 s T60
   let pc = rnd();
   let pm = rnd();
   let p2 = rnd();
   const dc = f / sr;
-  const kE = Math.exp(-1 / (L * 0.32 * sr));
+  const kE = Math.exp(-1 / (L0 * 0.32 * sr));
   const kI = Math.exp(-1 / (0.45 * sr));
   const kP = Math.exp(-1 / (0.8 * sr));
   let eE = 1;
@@ -264,7 +274,7 @@ function bell(sr, f, dur, vel, p, rnd) {
   const na = Math.round(0.003 * sr);
   for (let n = 0; n < len; n++) {
     const e = eE * (n < na ? n / na : 1);
-    eE *= kE;
+    eE *= n < offN ? kE : kDamp;
     const idx = eI + 0.35;
     eI *= kI;
     pc += dc;
@@ -454,7 +464,7 @@ const PADS = {
 };
 
 function analogLead(sr, f, dur, vel, p, rnd) {
-  const rel = 0.12;
+  const rel = p.rel ?? 0.12;
   const len = Math.ceil(sr * (dur + rel * 1.3 + 0.02));
   const out = new Float32Array(len);
   const from = p.from ? mtof(p.from) : f;
@@ -509,8 +519,12 @@ function synthBass(sr, f, dur, vel, p, rnd) {
   return fadeEnds(out, sr, 1, 8);
 }
 
+/** Saw pluck; p.long: slower decay; p.gate: the gate closes (20 ms) that many seconds after the note. */
 function pluckSynth(sr, f, dur, vel, p, rnd) {
-  const len = Math.ceil(sr * Math.min(1.2, dur + 0.6));
+  const gateN = p.gate != null ? Math.round((dur + p.gate) * sr) : Infinity;
+  const len = Math.ceil(sr * Math.min(1.2, dur + 0.6, p.gate != null ? dur + p.gate + 0.12 : Infinity));
+  const kG = Math.exp(-1 / (0.02 * sr));
+  let g = 1;
   const out = new Float32Array(len);
   let a = rnd();
   let b = rnd();
@@ -525,7 +539,8 @@ function pluckSynth(sr, f, dur, vel, p, rnd) {
     b += da * 1.006;
     if (b >= 1) b -= 1;
     const v = sawBL(a, da) + 0.7 * sawBL(b, da * 1.006);
-    out[n] = f1.lp(v) * Math.exp(-t / dk) * Math.min(1, t / 0.002);
+    if (n >= gateN) g *= kG;
+    out[n] = f1.lp(v) * Math.exp(-t / dk) * Math.min(1, t / 0.002) * g;
   }
   eq(out, sr, [['highpass', 180, 0.7, 0]]);
   return fadeEnds(out, sr, 0, 20);
@@ -943,7 +958,9 @@ function drum(sr, kind, vel, p, rnd) {
 // ref: reference MIDI pitch for calibration; drum: percussion (pitch ignored)
 export const VOICES = {
   // plucked strings (Karplus–Strong)
-  harp: { ref: 62, fn: (sr, f, d, v, p, r) => ks(sr, f, d, v, { t60: 3.2 * Math.pow(196 / f, 0.4), ring: 1.8, b: 0.3, pick: 0.28, bright: 0.45, body: [['peaking', 250, 1.2, 3], ['highshelf', 4000, 0.7, -3], ['highpass', 60, 0.7, 0]] }, r) },
+  // p.damp: the harpist stops the string (release T60, s) when the note ends — used where the
+  // next melody note is a semitone away, so the two strings do not ring against each other
+  harp: { ref: 62, fn: (sr, f, d, v, p, r) => ks(sr, f, d, v, { t60: 3.2 * Math.pow(196 / f, 0.4), ring: 1.8, rel: p.damp, b: 0.3, pick: 0.28, bright: 0.45, body: [['peaking', 250, 1.2, 3], ['highshelf', 4000, 0.7, -3], ['highpass', 60, 0.7, 0]] }, r) },
   santur: {
     ref: 62,
     fn: (sr, f, d, v, p, r) => {

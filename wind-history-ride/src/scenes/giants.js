@@ -1,21 +1,27 @@
 // src/scenes/giants.js
-// #19 · 2020s · 巨型風機時代 — a 15 MW-class offshore turbine as a live digital twin.
+// #19 · 2019–2026 · 巨型風機時代 — the 26 MW-class prototype as a live digital twin.
 //
 // Medium: engineering visualisation / digital-twin HUD — dark navy field, cyan & teal
 // wireframes with glow, glowing sensor nodes, grid floor, section view, mono data labels,
 // HUD corner brackets, scanlines.
 //
-// Content (one consistent scale, 2 px = 1 m, ground / mean sea level at y = 600):
+// Content (one consistent scale, 1.5 px = 1 m, test-site ground at y = 600):
 //   1888 Brush (Ø17 m, 144-blade rotor, 18 m tower, 12 kW)
 //   1941 Smith–Putnam (Ø53.3 m, two steel blades, lattice tower, 1,250 kW)
 //   1957 Gedser (Ø24 m, three stayed blades, concrete tower, 200 kW)
 //   2002 2 MW class (Ø80 m, tubular tower, hub ~70 m)
-//   2020s 15 MW class offshore (Ø236 m, 115 m blades, hub 150 m, upwind, 3 blades,
-//         ~5–7 rpm, monopile + transition piece) — with a true-scale spoonbill (2 m).
-//   Reference: A380 wingspan 79.8 m, Taipei 101 508 m (off-scale arrow).
+//   2025 26 MW-class prototype (rotor > 310 m, three 153 m blades, upwind, tubular tower,
+//        hub "higher than a 50-storey building" — drawn at ~185 m, an estimate, so the hub
+//        height and tip height are NOT printed as numbers), standing ON LAND at a coastal test
+//        base with the sea beyond; a bus and two people at its foot for scale.
+//   Dashed rings on its rotor disc: 2019 Ø220 m (12 MW class) and 2022 Ø236 m (15 MW class).
+//   Scale cues: a single 153 m blade beside a 105 m football pitch; Taipei 101 (508 m, off-scale).
+//   Odometer: global cumulative wind capacity — passed 1 TW in 2023, 1,299 GW at end-2025 (GWEC).
+//   Brand-neutral: no manufacturer names on the 2020s machines.
 //
 // Gag (bar 3): the scan box locks onto the tiny true-scale cyclist at the foot of the
-// giants — "黑面琵鷺 · 1 鳥力" — just as the giant's readout tops out at "15,000 kW".
+// giants — "黑面琵鷺 · 1 鳥力" — just as the giant's readout tops out at "26,000 kW".
+// Bar 4: the global odometer rolls from "1,000+ GW (2023)" to "1,299 GW (2025)".
 
 const P = 1000;
 const ROAD_Y = 700;
@@ -34,20 +40,29 @@ const COL = {
 };
 
 // ---- scale ---------------------------------------------------------------------
-const K = 2; // px per metre
-const GY = 600; // ground / mean sea level
-const SHORE_X = 500;
-const SEABED_Y = GY + 25 * K; // 25 m water depth
-const PILE_TIP_Y = SEABED_Y + 22 * K;
-const my = (m) => GY - m * K; // metres above datum -> y
+const K = 1.5; // px per metre
+const GY = 600; // test-site ground level
+const SHORE_X = 884; // the sea starts beyond the coastal test base
+const SEA_Y = GY + 4.5; // mean sea level ~3 m below the ground
+const SEABED_Y = GY + 18 * K;
+const my = (m) => GY - m * K; // metres above ground -> y
+const k2 = K / 2; // size factor vs. the 2 px/m originals of the small machines
 
 const TURBINES = [
-  { id: 'brush', x: 80, hub: 18, R: 8.5, rpm: 10, phase: 0.3 },
-  { id: 'putnam', x: 172, hub: 37, R: 26.65, rpm: 28, phase: 1.1 },
-  { id: 'gedser', x: 263, hub: 25, R: 12, rpm: 30, phase: 2.0 },
-  { id: 'mw2', x: 372, hub: 70, R: 40, rpm: 16.7, phase: 0.6 },
+  { id: 'brush', x: 72, hub: 18, R: 8.5, rpm: 10, phase: 0.3 },
+  { id: 'putnam', x: 152, hub: 37, R: 26.65, rpm: 28, phase: 1.1 },
+  { id: 'gedser', x: 236, hub: 25, R: 12, rpm: 30, phase: 2.0 },
+  { id: 'mw2', x: 346, hub: 70, R: 40, rpm: 16.7, phase: 0.6 },
 ];
-const GIANT = { x: 730, hub: 150, R: 118, hubR: 5 };
+// hub ~185 m is our estimate of "higher than 50 storeys"; R = 3.5 m hub + 153 m blade
+const GIANT = { x: 712, hub: 185, R: 156.5, hubR: 3.5 };
+const RATED_KW = 26000;
+// earlier 2020s rotor sizes shown as dashed rings on the giant's disc
+const RINGS = [
+  { yr: '2019', d: 220 },
+  { yr: '2022', d: 236 },
+];
+const AXIS_X = 452;
 
 // HUD panels below the road
 const PANELS = {
@@ -56,16 +71,23 @@ const PANELS = {
   C: { x: 600, y: 740, w: 176, h: 194 },
   D: { x: 788, y: 740, w: 172, h: 194 },
 };
+const READOUT = { x: 40, y: 40, w: 290, h: 150 };
+const ODO = { x: 40, y: 204, w: 290, h: 84 };
+const LABEL = { x: 732, y: 412, w: 222, h: 108 };
 
+// every CJK glyph this panel draws (kept in sync by hand; used to preload / check the fonts)
 const HUD_TEXT =
-  '數位雙生離岸風機風速轉速槳距功率葉尖偏航規模對照轉子直徑功率曲線側視迎風式掃描中目標鎖定黑面琵鷺鳥力翼展台北輪轂高單支葉片級世代即時同步感測節點正常比例尺等於約倍巨機現役鎖定放大';
+  '轉子直徑功率曲線側視迎風式掃描中目標鎖定黑面琵鷺鳥力身高含單車巨機級風速轉速槳距葉尖額定' +
+  '原型機海岸測試基地已併網輪轂逾層樓虛線單支葉片標準足球場台北超出畫面巴士地下電纜全球累計裝置容量破' +
+  '面積比對照人';
+const MONO_TEXT = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,:·%/°Øø-+–▸◉●▲×≈…()=';
 
 if (typeof document !== 'undefined' && document.fonts && document.fonts.load) {
   try {
     document.fonts.load('400 13px "Noto Sans TC"', HUD_TEXT).catch(() => {});
     document.fonts.load('700 13px "Noto Sans TC"', HUD_TEXT).catch(() => {});
-    document.fonts.load('400 13px "JetBrains Mono"', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,:·%/°Øø-+–▸◉●').catch(() => {});
-    document.fonts.load('700 13px "JetBrains Mono"', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,:·%/°Øø-+–▸◉●').catch(() => {});
+    document.fonts.load('400 13px "JetBrains Mono"', MONO_TEXT).catch(() => {});
+    document.fonts.load('700 13px "JetBrains Mono"', MONO_TEXT).catch(() => {});
   } catch (e) {
     /* offline */
   }
@@ -74,7 +96,11 @@ let _fontsOk = false;
 function fontsReady() {
   if (_fontsOk) return true;
   try {
-    _fontsOk = document.fonts.check('400 13px "Noto Sans TC"', HUD_TEXT) && document.fonts.check('700 13px "JetBrains Mono"', 'A0');
+    _fontsOk =
+      document.fonts.check('400 13px "Noto Sans TC"', HUD_TEXT) &&
+      document.fonts.check('700 13px "Noto Sans TC"', HUD_TEXT) &&
+      document.fonts.check('400 13px "JetBrains Mono"', 'A0') &&
+      document.fonts.check('700 13px "JetBrains Mono"', 'A0');
     return _fontsOk;
   } catch (e) {
     return true;
@@ -215,12 +241,22 @@ function telemetry(t, lt, gag) {
   const gust = (vnoise(t * 0.9 + 3.1) - 0.5) * 0.7 + (vnoise(t * 2.3) - 0.5) * 0.25;
   const ws = 9.25 + 1.95 * ramp + gust; // m/s at hub height
   const rated = 10.6;
-  const pw = ws < 3 ? 0 : ws < rated ? (15000 * (ws * ws * ws - 27)) / (rated * rated * rated - 27) : 15000;
-  const rpm = Math.min(7.0, 5.0 + 0.35 * (ws - 5));
+  const pw = ws < 3 ? 0 : ws < rated ? (RATED_KW * (ws * ws * ws - 27)) / (rated * rated * rated - 27) : RATED_KW;
+  // a 310 m+ rotor turns slowly: ~5.4 rpm keeps the tip near 90 m/s
+  const rpm = Math.min(5.4, 3.9 + 0.3 * (ws - 5));
   const pitch = ws > rated ? (ws - rated) * 2.6 : 0.4 + 0.3 * Math.sin(t * 0.7);
   const tip = (rpm * TAU * GIANT.R) / 60;
   const yaw = 268 + 2.5 * Math.sin(t * 0.21);
-  return { ws, pw: Math.min(15000, pw), rpm, pitch, tip, yaw };
+  return { ws, pw: Math.min(RATED_KW, pw), rpm, pitch, tip, yaw };
+}
+
+/** global cumulative wind capacity shown on the odometer (GW) */
+function odometer(lt, thumb) {
+  if (thumb) return { v: 1299, stage: 2 };
+  const u = sstep(6.0, 7.2, lt);
+  if (u <= 0) return { v: 1000, stage: 0 };
+  if (u >= 1) return { v: 1299, stage: 2 };
+  return { v: 1000 + 299 * u, stage: 1 };
 }
 
 // =============================================================================
@@ -236,7 +272,7 @@ function paintBackground(kit, g, rng) {
   bg.addColorStop(1, '#030c15');
   g.fillStyle = bg;
   g.fillRect(0, 0, P, P);
-  const rad = g.createRadialGradient(700, 330, 40, 700, 330, 520);
+  const rad = g.createRadialGradient(GIANT.x, my(GIANT.hub), 40, GIANT.x, my(GIANT.hub), 520);
   rad.addColorStop(0, 'rgba(39,142,165,0.16)');
   rad.addColorStop(1, 'rgba(39,142,165,0)');
   g.fillStyle = rad;
@@ -244,7 +280,7 @@ function paintBackground(kit, g, rng) {
 
   // fine measurement grid in the "sky" (10 m minor, 50 m major)
   g.lineWidth = 1;
-  for (let m = 0; m <= 300; m += 10) {
+  for (let m = 0; m <= 400; m += 10) {
     const y = my(m) + 0.5;
     if (y < 0) break;
     g.strokeStyle = m % 50 === 0 ? 'rgba(39,142,165,0.16)' : 'rgba(39,142,165,0.06)';
@@ -253,103 +289,93 @@ function paintBackground(kit, g, rng) {
     g.lineTo(P, y);
     g.stroke();
   }
-  for (let x = 0; x <= P; x += 20) {
-    g.strokeStyle = (x - 30) % 100 === 0 ? 'rgba(39,142,165,0.1)' : 'rgba(39,142,165,0.045)';
+  for (let m = 0; m * K <= P; m += 10) {
+    const x = Math.round(m * K) + 0.5;
+    g.strokeStyle = m % 50 === 0 ? 'rgba(39,142,165,0.1)' : 'rgba(39,142,165,0.045)';
     g.beginPath();
-    g.moveTo(x + 0.5, 0);
-    g.lineTo(x + 0.5, GY);
+    g.moveTo(x, 0);
+    g.lineTo(x, GY);
     g.stroke();
   }
 
-  // ---- section below datum: soil (land) / water + seabed (sea)
+  // ---- section below ground: the coastal test base (soil) and the sea beyond the shore
   g.save();
   g.beginPath();
-  g.rect(0, GY, SHORE_X + 30, ROAD_Y - GY);
+  g.moveTo(0, GY);
+  g.lineTo(SHORE_X, GY);
+  g.lineTo(SHORE_X + 36, SEABED_Y);
+  g.lineTo(P, SEABED_Y);
+  g.lineTo(P, ROAD_Y);
+  g.lineTo(0, ROAD_Y);
+  g.closePath();
   g.clip();
-  g.fillStyle = 'rgba(31,66,135,0.18)';
+  g.fillStyle = 'rgba(31,66,135,0.2)';
   g.fillRect(0, GY, P, ROAD_Y - GY);
-  g.strokeStyle = 'rgba(39,142,165,0.22)';
+  g.strokeStyle = 'rgba(39,142,165,0.2)';
   g.lineWidth = 1;
-  for (let x = -120; x < SHORE_X + 140; x += 9) {
+  for (let x = -120; x < P + 20; x += 9) {
     g.beginPath();
     g.moveTo(x, ROAD_Y);
     g.lineTo(x + 100, GY);
     g.stroke();
   }
   // strata lines
-  g.strokeStyle = 'rgba(33,230,193,0.18)';
-  for (const yy of [628, 662]) {
+  g.strokeStyle = 'rgba(33,230,193,0.16)';
+  for (const yy of [636, 668]) {
     g.beginPath();
-    for (let x = 0; x <= SHORE_X + 30; x += 10) {
+    for (let x = 0; x <= P; x += 10) {
       const y = yy + 4 * Math.sin(x * 0.02 + yy);
       if (x === 0) g.moveTo(x, y);
       else g.lineTo(x, y);
     }
     g.stroke();
   }
-  g.restore();
-  // shore slope
-  g.fillStyle = 'rgba(31,66,135,0.18)';
-  g.beginPath();
-  g.moveTo(SHORE_X - 10, GY);
-  g.lineTo(SHORE_X + 60, SEABED_Y);
-  g.lineTo(SHORE_X + 60, ROAD_Y);
-  g.lineTo(SHORE_X - 10, ROAD_Y);
-  g.closePath();
-  g.fill();
-  // water column
-  const wg = g.createLinearGradient(0, GY, 0, SEABED_Y);
-  wg.addColorStop(0, 'rgba(33,230,193,0.14)');
-  wg.addColorStop(1, 'rgba(39,142,165,0.05)');
-  g.fillStyle = wg;
-  g.beginPath();
-  g.moveTo(SHORE_X - 10, GY);
-  g.lineTo(P, GY);
-  g.lineTo(P, SEABED_Y);
-  g.lineTo(SHORE_X + 60, SEABED_Y);
-  g.closePath();
-  g.fill();
-  g.strokeStyle = 'rgba(33,230,193,0.08)';
-  for (let y = GY + 6; y < SEABED_Y; y += 6) {
-    g.beginPath();
-    g.moveTo(SHORE_X + ((y - GY) / (SEABED_Y - GY)) * 70, y);
-    g.lineTo(P, y);
-    g.stroke();
-  }
-  // seabed sediment (dotted)
-  g.fillStyle = 'rgba(31,66,135,0.25)';
-  g.fillRect(SHORE_X + 60, SEABED_Y, P, ROAD_Y - SEABED_Y);
-  for (let i = 0; i < 260; i++) {
-    const x = SHORE_X + 60 + rng() * (P - SHORE_X - 60);
+  // seabed sediment beyond the shore (dotted)
+  for (let i = 0; i < 70; i++) {
+    const x = SHORE_X + 30 + rng() * (P - SHORE_X - 30);
     const y = SEABED_Y + 3 + rng() * (ROAD_Y - SEABED_Y - 6);
     g.fillStyle = `rgba(39,142,165,${0.15 + rng() * 0.3})`;
     g.fillRect(x, y, 1.5, 1.5);
   }
-  // datum / seabed lines
+  g.restore();
+  // water column
+  const wg = g.createLinearGradient(0, SEA_Y, 0, SEABED_Y);
+  wg.addColorStop(0, 'rgba(33,230,193,0.14)');
+  wg.addColorStop(1, 'rgba(39,142,165,0.05)');
+  g.fillStyle = wg;
+  g.beginPath();
+  g.moveTo(SHORE_X + 4, SEA_Y);
+  g.lineTo(P, SEA_Y);
+  g.lineTo(P, SEABED_Y);
+  g.lineTo(SHORE_X + 36, SEABED_Y);
+  g.closePath();
+  g.fill();
+  // ground / shore / seabed line
   g.strokeStyle = 'rgba(33,230,193,0.55)';
   g.lineWidth = 1.2;
   g.beginPath();
   g.moveTo(0, GY + 0.5);
-  g.lineTo(SHORE_X - 10, GY + 0.5);
-  g.lineTo(SHORE_X + 60, SEABED_Y + 0.5);
+  g.lineTo(SHORE_X, GY + 0.5);
+  g.lineTo(SHORE_X + 36, SEABED_Y + 0.5);
   g.lineTo(P, SEABED_Y + 0.5);
   g.stroke();
   g.font = mono(400, 10);
   g.fillStyle = 'rgba(230,247,255,0.55)';
   g.textAlign = 'left';
-  g.fillText('MSL ±0 m', SHORE_X + 70, GY + 14);
-  g.fillText('SEABED −25 m', SHORE_X + 70, SEABED_Y + 13);
+  g.fillText('GROUND ±0 m', 470, GY + 14);
+  g.fillText('MSL', SHORE_X + 30, SEA_Y + 13);
 
-  // ---- export cable trench (subsea → shore)
+  // ---- buried export cable from the giant to the grid (left)
   g.strokeStyle = 'rgba(255,201,90,0.25)';
   g.setLineDash([3, 4]);
   g.beginPath();
-  g.moveTo(GIANT.x, SEABED_Y + 6);
-  g.lineTo(SHORE_X + 60, SEABED_Y + 6);
-  g.lineTo(SHORE_X - 4, GY + 14);
-  g.lineTo(30, GY + 14);
+  g.moveTo(GIANT.x, GY + 20);
+  g.lineTo(30, GY + 20);
   g.stroke();
   g.setLineDash([]);
+  g.font = mono(400, 10);
+  g.fillStyle = 'rgba(255,201,90,0.6)';
+  g.fillText('◂ 地下電纜 · 已併網', 470, GY + 36);
 
   // ---- perspective grid floor below the road (HUD deck)
   const vpx = 500;
@@ -383,7 +409,7 @@ function paintBackground(kit, g, rng) {
   }
   g.restore();
 
-  // ---- road = baseline ruler (glowing rail with metre ticks)
+  // ---- road = baseline ruler (glowing rail with metre ticks: 10 m minor, 50 m major)
   g.beginPath();
   g.moveTo(0, ROAD_Y);
   g.lineTo(P, ROAD_Y);
@@ -391,22 +417,22 @@ function paintBackground(kit, g, rng) {
   g.strokeStyle = 'rgba(33,230,193,0.55)';
   g.lineWidth = 1;
   g.beginPath();
-  for (let x = 0; x <= P; x += 10) {
-    const major = x % 100 === 0;
-    g.moveTo(x + 0.5, ROAD_Y + 3);
-    g.lineTo(x + 0.5, ROAD_Y + (major ? 13 : x % 50 === 0 ? 9 : 6));
+  for (let m = 0; m * K <= P; m += 10) {
+    const x = Math.round(m * K) + 0.5;
+    g.moveTo(x, ROAD_Y + 3);
+    g.lineTo(x, ROAD_Y + (m % 100 === 0 ? 13 : m % 50 === 0 ? 9 : 6));
   }
   g.stroke();
   g.font = mono(400, 9);
   g.fillStyle = 'rgba(230,247,255,0.5)';
   g.textAlign = 'center';
-  for (let x = 100; x < P; x += 100) g.fillText(`${x / K} m`, x, ROAD_Y + 24);
+  for (let m = 100; m * K < P - 40; m += 100) g.fillText(`${m} m`, m * K, ROAD_Y + 24);
 
   // ---- static parts of the lineup (towers, foundations), labels, dimensions
   for (const tb of TURBINES) paintTower(g, tb);
   paintGiantStatic(g, kit);
   paintLabels(g, kit);
-  paintA380(g, kit);
+  paintBladeVsPitch(g, kit);
   paintHeightAxis(g, kit);
 }
 
@@ -416,16 +442,16 @@ function paintTower(g, tb) {
   g.save();
   if (tb.id === 'brush') {
     // 18 m four-sided timber tower, tapering, with cross bracing; tail vane edge-on behind
-    const b = 9;
-    const tp = 4;
+    const b = 9 * k2;
+    const tp = 4 * k2;
     g.beginPath();
     g.moveTo(x - b, GY);
-    g.lineTo(x - tp, hubY + 4);
-    g.lineTo(x + tp, hubY + 4);
+    g.lineTo(x - tp, hubY + 3);
+    g.lineTo(x + tp, hubY + 3);
     g.lineTo(x + b, GY);
     for (let k = 0; k < 4; k++) {
-      const y0 = lerp(GY, hubY + 4, k / 4);
-      const y1 = lerp(GY, hubY + 4, (k + 1) / 4);
+      const y0 = lerp(GY, hubY + 3, k / 4);
+      const y1 = lerp(GY, hubY + 3, (k + 1) / 4);
       const w0 = lerp(b, tp, k / 4);
       const w1 = lerp(b, tp, (k + 1) / 4);
       g.moveTo(x - w0, y0);
@@ -437,22 +463,22 @@ function paintTower(g, tb) {
     // the great tail vane, seen edge-on above the rotor
     g.beginPath();
     g.moveTo(x, hubY - 2);
-    g.lineTo(x, hubY - 24);
+    g.lineTo(x, hubY - 18);
     glow(g, COL.teal, 1, 0.7);
     // foundation
     g.strokeStyle = rgba(COL.cyan, 0.5);
-    g.strokeRect(x - 12, GY + 1, 24, 6);
+    g.strokeRect(x - 9, GY + 1, 18, 5);
   } else if (tb.id === 'putnam') {
     // steel lattice tower (truss), 120 ft
-    const b = 15;
-    const tp = 4;
-    const top = hubY + 10;
+    const b = 15 * k2;
+    const tp = 4 * k2;
+    const top = hubY + 7;
     g.beginPath();
     g.moveTo(x - b, GY);
     g.lineTo(x - tp, top);
     g.moveTo(x + b, GY);
     g.lineTo(x + tp, top);
-    const n = 6;
+    const n = 5;
     for (let k = 0; k < n; k++) {
       const y0 = lerp(GY, top, k / n);
       const y1 = lerp(GY, top, (k + 1) / n);
@@ -468,14 +494,14 @@ function paintTower(g, tb) {
     glow(g, COL.teal, 1, 0.9);
     // nacelle housing (downwind rotor sits behind it in reality)
     g.beginPath();
-    g.rect(x - 7, hubY - 4, 14, 12);
+    g.rect(x - 5, hubY - 3, 10, 9);
     glow(g, COL.teal, 1, 0.9);
     g.strokeStyle = rgba(COL.cyan, 0.5);
-    for (const fx of [x - b, x + b]) g.strokeRect(fx - 4, GY + 1, 8, 8);
+    for (const fx of [x - b, x + b]) g.strokeRect(fx - 3, GY + 1, 6, 6);
   } else if (tb.id === 'gedser') {
     // tapered concrete tower
-    const b = 5;
-    const tp = 3;
+    const b = 5 * k2;
+    const tp = 3 * k2;
     g.beginPath();
     g.moveTo(x - b, GY);
     g.lineTo(x - tp, hubY + 3);
@@ -492,38 +518,38 @@ function paintTower(g, tb) {
       g.stroke();
     }
     g.beginPath();
-    g.rect(x - 5, hubY - 3, 10, 6);
+    g.rect(x - 4, hubY - 2.5, 8, 5);
     glow(g, COL.teal, 1, 0.9);
     g.strokeStyle = rgba(COL.cyan, 0.5);
-    g.strokeRect(x - 10, GY + 1, 20, 8);
+    g.strokeRect(x - 8, GY + 1, 16, 6);
   } else if (tb.id === 'mw2') {
-    // tubular steel tower, 70 m hub (offshore-era 2 MW class)
-    const b = 4.2;
-    const tp = 2.3;
+    // tubular steel tower, 70 m hub (2 MW class)
+    const b = 4.2 * k2 + 0.6;
+    const tp = 2.3 * k2 + 0.4;
     g.beginPath();
     g.moveTo(x - b, GY);
-    g.lineTo(x - tp, hubY + 4);
+    g.lineTo(x - tp, hubY + 3);
     g.moveTo(x + b, GY);
-    g.lineTo(x + tp, hubY + 4);
+    g.lineTo(x + tp, hubY + 3);
     glow(g, COL.teal, 1.1, 0.95);
     g.strokeStyle = rgba(COL.teal, 0.4);
     for (let k = 1; k < 4; k++) {
-      const y = lerp(GY, hubY + 4, k / 4);
+      const y = lerp(GY, hubY + 3, k / 4);
       const w = lerp(b, tp, k / 4);
       g.beginPath();
-      g.ellipse(x, y, w, 1.2, 0, 0, TAU);
+      g.ellipse(x, y, w, 1, 0, 0, TAU);
       g.stroke();
     }
     g.beginPath();
-    g.rect(x - 6, hubY - 3.5, 12, 7);
+    g.rect(x - 4.5, hubY - 2.6, 9, 5.2);
     glow(g, COL.teal, 1, 0.95);
     // spread footing below ground
     g.strokeStyle = rgba(COL.cyan, 0.5);
     g.beginPath();
-    g.moveTo(x - 16, GY + 1);
-    g.lineTo(x - 16, GY + 6);
-    g.lineTo(x + 16, GY + 6);
-    g.lineTo(x + 16, GY + 1);
+    g.moveTo(x - 12, GY + 1);
+    g.lineTo(x - 12, GY + 5);
+    g.lineTo(x + 12, GY + 5);
+    g.lineTo(x + 12, GY + 1);
     g.stroke();
   }
   g.restore();
@@ -532,64 +558,45 @@ function paintTower(g, tb) {
 function paintGiantStatic(g, kit) {
   const x = GIANT.x;
   const hubY = my(GIANT.hub);
-  // monopile (Ø ~10 m) from pile tip up to the transition piece
-  const pr = 10;
-  const tpTop = my(22);
-  const tpBot = my(-6);
+  // onshore foundation: wide reinforced-concrete pile cap on bored piles (section view)
+  const capW = 16 * K;
+  const capB = GY + 5 * K;
   g.beginPath();
-  g.moveTo(x - pr, PILE_TIP_Y);
-  g.lineTo(x - pr, tpBot);
-  g.moveTo(x + pr, PILE_TIP_Y);
-  g.lineTo(x + pr, tpBot);
-  g.moveTo(x - pr, PILE_TIP_Y);
-  g.lineTo(x + pr, PILE_TIP_Y);
+  g.moveTo(x - capW, GY + 1);
+  g.lineTo(x + capW, GY + 1);
+  g.lineTo(x + capW, capB);
+  g.lineTo(x - capW, capB);
+  g.closePath();
+  g.moveTo(x - 9 * K, GY + 1);
+  g.lineTo(x - 7 * K, GY - 2);
+  g.lineTo(x + 7 * K, GY - 2);
+  g.lineTo(x + 9 * K, GY + 1);
   glow(g, COL.cyan, 1.1, 0.85);
-  // embedded part hatch
   g.save();
   g.beginPath();
-  g.rect(x - pr, SEABED_Y, pr * 2, PILE_TIP_Y - SEABED_Y);
+  g.rect(x - capW, GY + 1, capW * 2, capB - GY - 1);
   g.clip();
-  g.strokeStyle = 'rgba(33,230,193,0.25)';
-  for (let k = -30; k < 40; k += 5) {
+  g.strokeStyle = 'rgba(33,230,193,0.28)';
+  g.lineWidth = 1;
+  for (let k = -40; k < 50; k += 5) {
     g.beginPath();
-    g.moveTo(x - pr + k, PILE_TIP_Y);
-    g.lineTo(x - pr + k + 25, SEABED_Y);
+    g.moveTo(x - capW + k, capB);
+    g.lineTo(x - capW + k + 9, GY);
     g.stroke();
   }
   g.restore();
-  // scour protection (rock berm)
   g.strokeStyle = 'rgba(33,230,193,0.45)';
   g.beginPath();
-  g.moveTo(x - 46, SEABED_Y);
-  g.quadraticCurveTo(x - 24, SEABED_Y - 7, x - pr, SEABED_Y - 5);
-  g.moveTo(x + pr, SEABED_Y - 5);
-  g.quadraticCurveTo(x + 24, SEABED_Y - 7, x + 46, SEABED_Y);
-  g.stroke();
-  // transition piece with boat landing & work platform
-  g.beginPath();
-  g.rect(x - pr - 1.5, tpTop, pr * 2 + 3, tpBot - tpTop);
-  glow(g, COL.amber, 1.1, 0.75);
-  g.beginPath();
-  g.moveTo(x - 22, tpTop);
-  g.lineTo(x + 22, tpTop);
-  g.moveTo(x - 22, tpTop - 6);
-  g.lineTo(x + 22, tpTop - 6);
-  for (let k = -22; k <= 22; k += 5.5) {
-    g.moveTo(x + k, tpTop);
-    g.lineTo(x + k, tpTop - 6);
+  for (const px of [-13, -7.5, -2.5, 2.5, 7.5, 13]) {
+    g.moveTo(x + px * K, capB);
+    g.lineTo(x + px * K, capB + 24 * K);
   }
-  glow(g, COL.amber, 0.9, 0.7);
-  g.beginPath();
-  g.moveTo(x + pr + 3, tpBot + 6);
-  g.lineTo(x + pr + 3, tpTop + 2);
-  g.moveTo(x + pr + 7, tpBot + 6);
-  g.lineTo(x + pr + 7, tpTop + 2);
-  glow(g, COL.amber, 0.8, 0.55);
-  // tubular tower: Ø ~10 m at base → ~6.5 m at top, flanged sections
-  const tb = tpTop;
-  const tt = hubY + 12;
-  const bw = 10;
-  const tw = 6.5;
+  g.stroke();
+  // tubular steel tower: Ø ~10 m at the base → ~6.5 m at the top, flanged sections
+  const tb = GY - 2;
+  const tt = hubY + 7 * K;
+  const bw = 5 * K;
+  const tw = 3.3 * K;
   g.beginPath();
   g.moveTo(x - bw, tb);
   g.lineTo(x - tw, tt);
@@ -598,41 +605,94 @@ function paintGiantStatic(g, kit) {
   glow(g, COL.cyan, 1.3, 1);
   g.strokeStyle = 'rgba(33,230,193,0.35)';
   g.lineWidth = 1;
-  for (let k = 1; k < 9; k++) {
-    const y = lerp(tb, tt, k / 9);
-    const w = lerp(bw, tw, k / 9);
+  for (let k = 1; k < 10; k++) {
+    const y = lerp(tb, tt, k / 10);
+    const w = lerp(bw, tw, k / 10);
     g.beginPath();
-    g.ellipse(x, y, w, 1.6, 0, 0, TAU);
+    g.ellipse(x, y, w, 1.4, 0, 0, TAU);
     g.stroke();
   }
+  // tower door
+  g.strokeStyle = 'rgba(255,201,90,0.55)';
+  g.strokeRect(x - 1.5, GY - 6, 3, 4);
   // internal ladder/cable (dashed)
   g.strokeStyle = 'rgba(255,201,90,0.3)';
   g.setLineDash([2, 3]);
   g.beginPath();
   g.moveTo(x + 2, tt);
-  g.lineTo(x + 2, PILE_TIP_Y - 30);
+  g.lineTo(x + 2, GY + 20);
   g.stroke();
   g.setLineDash([]);
+
+  // same-scale people and a 12 m bus at the tower foot
+  const bx = x - 66;
+  g.beginPath();
+  g.rect(bx, GY - 3.2 * K, 12 * K, 3.2 * K - 1.2);
+  g.moveTo(bx + 4.5, GY - 0.6);
+  g.arc(bx + 3.5, GY - 0.6, 1, 0, TAU);
+  g.moveTo(bx + 15.5, GY - 0.6);
+  g.arc(bx + 14.5, GY - 0.6, 1, 0, TAU);
+  for (const hx of [x - 42, x - 38]) {
+    g.moveTo(hx, GY - 0.3);
+    g.lineTo(hx, GY - 2.6);
+  }
+  glow(g, COL.pale, 0.7, 0.75);
+  g.strokeStyle = 'rgba(230,247,255,0.45)';
+  g.lineWidth = 1;
+  g.beginPath();
+  g.moveTo(bx + 9, GY - 6);
+  g.lineTo(bx + 4, GY - 22);
+  g.lineTo(bx - 30, GY - 22);
+  g.stroke();
+  g.font = `400 10px ${kit.FONT.mono}`;
+  g.fillStyle = 'rgba(230,247,255,0.75)';
+  g.textAlign = 'right';
+  g.fillText('巴士 12 m · 人 1.7 m', bx - 34, GY - 19);
+
+  // swept-area comparison rings: earlier 2020s rotors on the same hub
+  g.setLineDash([5, 5]);
+  g.lineWidth = 1;
+  g.font = `700 11px ${kit.FONT.mono}`;
+  g.textAlign = 'center';
+  for (const r of RINGS) {
+    const rr = (r.d / 2) * K;
+    g.strokeStyle = 'rgba(230,247,255,0.28)';
+    g.beginPath();
+    g.arc(x, hubY, rr, 0, TAU);
+    g.stroke();
+  }
+  g.setLineDash([]);
+  // year tags where each ring crosses the upper-left diagonal
+  for (const [i, r] of RINGS.entries()) {
+    const rr = (r.d / 2) * K;
+    const a = -Math.PI * (i === 0 ? 0.78 : 0.72);
+    const px = x + Math.cos(a) * rr;
+    const py = hubY + Math.sin(a) * rr;
+    g.fillStyle = 'rgba(4,16,28,0.85)';
+    g.fillRect(px - 17, py - 8, 34, 15);
+    g.fillStyle = 'rgba(230,247,255,0.85)';
+    g.fillText(r.yr, px, py + 4);
+  }
 }
 
 function paintLabels(g, kit) {
   const mono = (w, s) => `${w} ${s}px ${kit.FONT.mono}`;
   const L = [
-    { x: 80, y: 500, hubY: my(18) - 18, a: '1888 · Brush', b: 'Ø17 m · 12 kW' },
-    { x: 150, y: 430, hubY: my(37) - 54, a: '1941 · Smith–Putnam', b: 'Ø53 m · 1,250 kW' },
-    { x: 263, y: 486, hubY: my(25) - 25, a: '1957 · Gedser', b: 'Ø24 m · 200 kW' },
-    { x: 360, y: 348, hubY: my(70) - 81, a: '2002 · 2 MW 級', b: 'Ø80 m · 2,000 kW' },
+    { x: 72, y: 512, top: my(18) - 8.5 * K - 2, a: '1888 · Brush', b: 'Ø17 m · 12 kW' },
+    { x: 152, y: 470, top: my(37) - 26.65 * K - 2, a: '1941 · Smith–Putnam', b: 'Ø53 m · 1,250 kW' },
+    { x: 238, y: 522, top: my(25) - 12 * K - 2, a: '1957 · Gedser', b: 'Ø24 m · 200 kW' },
+    { x: 346, y: 412, top: my(70) - 40 * K - 2, a: '2002 · 2 MW 級', b: 'Ø80 m · 2,000 kW' },
   ];
   for (const l of L) {
     g.strokeStyle = 'rgba(33,230,193,0.45)';
     g.lineWidth = 1;
     g.beginPath();
     g.moveTo(l.x, l.y + 4);
-    g.lineTo(l.x, l.hubY);
+    g.lineTo(l.x, l.top);
     g.stroke();
     g.fillStyle = 'rgba(33,230,193,0.9)';
     g.beginPath();
-    g.arc(l.x, l.hubY, 1.8, 0, TAU);
+    g.arc(l.x, l.top, 1.8, 0, TAU);
     g.fill();
     g.textAlign = 'center';
     g.font = mono(700, 12);
@@ -642,87 +702,116 @@ function paintLabels(g, kit) {
     g.fillStyle = 'rgba(33,230,193,0.95)';
     g.fillText(l.b, l.x, l.y);
   }
-  // giant: label block to the right of the tower
-  const gx = 762;
-  const gy = 470;
+  // giant: leader from the tower to its label card (the card itself is drawn above the rotor)
   g.strokeStyle = 'rgba(33,230,193,0.6)';
+  g.lineWidth = 1;
   g.beginPath();
-  g.moveTo(GIANT.x + 12, my(80));
-  g.lineTo(gx - 6, gy - 12);
-  g.lineTo(gx + 150, gy - 12);
+  g.moveTo(GIANT.x + 6, my(70));
+  g.lineTo(LABEL.x + 2, LABEL.y + 30);
   g.stroke();
-  g.textAlign = 'left';
-  g.font = mono(700, 13);
-  g.fillStyle = COL.pale;
-  g.fillText('2020s · 15 MW 級 離岸', gx, gy - 18);
-  g.font = mono(400, 11);
-  g.fillStyle = 'rgba(33,230,193,0.95)';
-  g.fillText('Ø236 m · 葉片 115 m', gx, gy + 4);
-  g.fillText('輪轂高 150 m · 迎風 3 葉', gx, gy + 20);
-  g.fillText('單樁 + 轉接段', gx, gy + 36);
-  // giant: hub height dimension (left of the tower) and rotor diameter on top
-  dimLine(g, GIANT.x - 34, GY, GIANT.x - 34, my(GIANT.hub), '150 m', COL.cyan, mono(400, 10), -1);
-  dimLine(g, GIANT.x - GIANT.R * K, 44, GIANT.x + GIANT.R * K, 44, 'Ø 236 m', COL.cyan, mono(700, 11), -1);
+  // giant: hub-height dimension (left of the tower, no number: only "> 50 storeys" is reported)
+  dimLine(g, GIANT.x - 24, GY, GIANT.x - 24, my(GIANT.hub), '輪轂 > 50 層樓', COL.cyan, mono(400, 10), -1);
+  // rotor diameter on top
+  const dy = 62;
+  dimLine(g, GIANT.x - GIANT.R * K, dy, GIANT.x + GIANT.R * K, dy, 'Ø > 310 m', COL.cyan, mono(700, 11.5), -1);
   g.setLineDash([2, 4]);
   g.strokeStyle = 'rgba(33,230,193,0.25)';
   g.beginPath();
-  g.moveTo(GIANT.x - GIANT.R * K, 44);
+  g.moveTo(GIANT.x - GIANT.R * K, dy);
   g.lineTo(GIANT.x - GIANT.R * K, my(GIANT.hub));
-  g.moveTo(GIANT.x + GIANT.R * K, 44);
+  g.moveTo(GIANT.x + GIANT.R * K, dy);
   g.lineTo(GIANT.x + GIANT.R * K, my(GIANT.hub));
   g.stroke();
   g.setLineDash([]);
 }
 
-function paintA380(g, kit) {
-  // front view ghost of an A380 at the same scale: wingspan 79.8 m
-  const cx = 200;
-  const cy = 266;
-  const half = (79.8 / 2) * K;
-  g.save();
+/** the giant's label card (baked small; drawn over the rotor so the blades never hide it) */
+function paintGiantLabel(g, kit) {
+  const mono = (w, s) => `${w} ${s}px ${kit.FONT.mono}`;
+  const w = LABEL.w;
+  const h = LABEL.h;
+  g.fillStyle = 'rgba(4,18,30,0.62)';
+  g.fillRect(0, 0, w, h);
+  g.strokeStyle = 'rgba(33,230,193,0.35)';
+  g.lineWidth = 1;
+  g.strokeRect(0.5, 0.5, w - 1, h - 1);
+  g.strokeStyle = 'rgba(33,230,193,0.7)';
   g.beginPath();
-  // fuselage (Ø ~7.1 m)
-  g.ellipse(cx, cy, 7.1, 8.2, 0, 0, TAU);
-  // wings with dihedral
-  g.moveTo(cx - 6, cy + 4);
-  g.lineTo(cx - half, cy - 7);
-  g.lineTo(cx - half, cy - 9);
-  g.lineTo(cx - 6, cy + 1);
-  g.moveTo(cx + 6, cy + 4);
-  g.lineTo(cx + half, cy - 7);
-  g.lineTo(cx + half, cy - 9);
-  g.lineTo(cx + 6, cy + 1);
-  // vertical fin (~24 m tall from ground → ~14 m above fuselage top)
-  g.moveTo(cx - 1.5, cy - 8);
-  g.lineTo(cx, cy - 36);
-  g.lineTo(cx + 1.5, cy - 8);
-  // horizontal tailplane
-  g.moveTo(cx - 30, cy - 9);
-  g.lineTo(cx + 30, cy - 9);
-  glow(g, COL.teal, 1, 0.8);
-  // four engines
-  for (const ex of [-28, -50, 28, 50]) {
-    const ey = cy + 6 - Math.abs(ex) * 0.13;
-    g.beginPath();
-    g.ellipse(cx + ex, ey, 3.2, 3.2, 0, 0, TAU);
-    glow(g, COL.teal, 0.9, 0.8);
+  g.moveTo(8, 30.5);
+  g.lineTo(w - 8, 30.5);
+  g.stroke();
+  g.textAlign = 'left';
+  g.font = mono(700, 14);
+  g.fillStyle = COL.pale;
+  g.fillText('2025 · 26 MW 原型機', 8, 22);
+  g.font = mono(400, 12);
+  g.fillStyle = 'rgba(33,230,193,0.95)';
+  g.fillText('Ø 310 m+ · 葉片 153 m', 8, 48);
+  g.fillText('輪轂高逾 50 層樓 · 迎風 3 葉', 8, 65);
+  g.fillText('海岸測試基地 · 已併網', 8, 82);
+  g.font = mono(400, 10.5);
+  g.fillStyle = 'rgba(230,247,255,0.62)';
+  g.fillText('虛線 2019 Ø220 · 2022 Ø236', 8, 99);
+}
+
+/** scale cue: one 153 m blade beside a standard 105 m football pitch (pitch seen lying flat) */
+function paintBladeVsPitch(g, kit) {
+  const mono = (w, s) => `${w} ${s}px ${kit.FONT.mono}`;
+  const x0 = 58;
+  // the blade, root at the left, at the same scale
+  const by = 338;
+  const L = 153 * K;
+  g.beginPath();
+  bladePath(g, x0, by, 0, 0, L, 6.5 * K, true);
+  glow(g, COL.cyan, 1, 0.9);
+  // root flange
+  g.beginPath();
+  g.ellipse(x0, by, 1.5, 4.2, 0, 0, TAU);
+  glow(g, COL.cyan, 1, 0.9);
+  dimLine(g, x0, by - 16, x0 + L, by - 16, '單支葉片 153 m', COL.cyan, mono(700, 12.5), -1);
+  // the football pitch (105 m × 68 m) lying on the ground, seen obliquely
+  const py = 374;
+  const pw = 105 * K;
+  const ph = 22;
+  const sk = 14;
+  g.beginPath();
+  g.moveTo(x0 + sk, py - ph);
+  g.lineTo(x0 + sk + pw, py - ph);
+  g.lineTo(x0 + pw, py);
+  g.lineTo(x0, py);
+  g.closePath();
+  // halfway line and centre circle (Ø 18.3 m)
+  g.moveTo(x0 + sk + pw / 2, py - ph);
+  g.lineTo(x0 + pw / 2, py);
+  const ccx = x0 + sk / 2 + pw / 2;
+  g.moveTo(ccx + 9.15 * K, py - ph / 2);
+  g.ellipse(ccx, py - ph / 2, 9.15 * K, 9.15 * (ph / 68), 0, 0, TAU);
+  // penalty areas (16.5 m deep, 40.3 m wide)
+  for (const side of [0, 1]) {
+    const gx = side === 0 ? x0 + sk : x0 + sk + pw;
+    const depth = 16.5 * K * (side === 0 ? 1 : -1);
+    const pts = [0.204, 0.796].map((u) => [gx - sk * u, py - ph + ph * u]);
+    g.moveTo(pts[0][0], pts[0][1]);
+    g.lineTo(pts[0][0] + depth, pts[0][1]);
+    g.lineTo(pts[1][0] + depth, pts[1][1]);
+    g.lineTo(pts[1][0], pts[1][1]);
   }
-  g.restore();
-  dimLine(g, cx - half, cy + 30, cx + half, cy + 30, 'A380 翼展 79.8 m', COL.teal, `400 10px ${kit.FONT.mono}`, 1);
+  glow(g, COL.teal, 1, 0.9);
+  dimLine(g, x0, py + 12, x0 + pw, py + 12, '足球場 105 m', COL.teal, mono(700, 11.5), 1);
 }
 
 function paintHeightAxis(g, kit) {
-  const x = 478;
+  const x = AXIS_X;
   g.strokeStyle = 'rgba(33,230,193,0.6)';
   g.lineWidth = 1;
   g.beginPath();
   g.moveTo(x + 0.5, GY);
-  g.lineTo(x + 0.5, 56);
+  g.lineTo(x + 0.5, 72);
   g.stroke();
   g.font = `400 9px ${kit.FONT.mono}`;
   g.fillStyle = 'rgba(230,247,255,0.6)';
   g.textAlign = 'right';
-  for (let m = 0; m <= 270; m += 10) {
+  for (let m = 0; m <= 350; m += 10) {
     const y = my(m) + 0.5;
     const major = m % 50 === 0;
     g.beginPath();
@@ -731,7 +820,9 @@ function paintHeightAxis(g, kit) {
     g.stroke();
     if (major && m > 0) g.fillText(`${m}`, x - 10, y + 3);
   }
-  // blade-tip height marker
+  g.textAlign = 'left';
+  g.fillText('m', x + 4, 76);
+  // blade-tip height marker (no number: the hub height behind it is an estimate)
   const ty = my(GIANT.hub + GIANT.R);
   g.strokeStyle = 'rgba(255,201,90,0.6)';
   g.setLineDash([3, 3]);
@@ -743,15 +834,15 @@ function paintHeightAxis(g, kit) {
   g.fillStyle = 'rgba(255,201,90,0.95)';
   g.textAlign = 'left';
   g.font = `700 10.5px ${kit.FONT.mono}`;
-  g.fillText('葉尖 268 m', x + 6, ty + 14);
+  g.fillText('葉尖', x + 6, ty + 14);
   // off-scale reference: Taipei 101 (beyond the top of the viewport)
   g.fillStyle = 'rgba(230,247,255,0.75)';
   g.textAlign = 'right';
   g.font = `400 10.5px ${kit.FONT.mono}`;
-  g.fillText('▲ 台北101 508 m', x - 6, 50);
+  g.fillText('▲ 台北101 508 m', x - 4, 50);
   g.fillStyle = 'rgba(230,247,255,0.5)';
   g.font = `400 9.5px ${kit.FONT.mono}`;
-  g.fillText('= 葉尖高 ×1.9', x - 6, 63);
+  g.fillText('(超出畫面)', x - 4, 63);
 }
 
 // =============================================================================
@@ -791,34 +882,36 @@ function paintHud(kit, g, rng) {
   const A = PANELS.A;
   panelFrame(g, A, 'ROTOR Ø · 轉子直徑 (m)', kit);
   const rows = [
-    ['1888', 17, 'Brush'],
-    ['1941', 53.3, 'Smith–Putnam'],
-    ['1957', 24, 'Gedser'],
-    ['2002', 80, '2 MW 級'],
-    ['2020s', 236, '15 MW 級'],
+    ['1888', 17, 'Brush', '17'],
+    ['1941', 53.3, 'Smith–Putnam', '53.3'],
+    ['1957', 24, 'Gedser', '24'],
+    ['2002', 80, '2 MW 級', '80'],
+    ['2019', 220, '12 MW 級', '220'],
+    ['2025', 310, '26 MW 級', '310+'],
   ];
-  rows.forEach(([yr, d, nm], i) => {
-    const y = A.y + 40 + i * 30;
+  rows.forEach(([yr, d, nm, lab], i) => {
+    const y = A.y + 37 + i * 24;
     g.font = mono(700, 10);
     g.fillStyle = COL.pale;
     g.textAlign = 'left';
     g.fillText(yr, A.x + 8, y);
     g.font = mono(400, 9);
     g.fillStyle = 'rgba(230,247,255,0.6)';
-    g.fillText(nm, A.x + 52, y);
-    const bw = d * 0.86;
-    const isG = i === 4;
-    g.fillStyle = isG ? 'rgba(33,230,193,0.85)' : 'rgba(39,142,165,0.75)';
-    g.fillRect(A.x + 8, y + 5, Math.max(2, bw), 7);
-    g.fillStyle = isG ? COL.ink : 'rgba(33,230,193,0.85)';
+    g.fillText(nm, A.x + 44, y);
+    const bw = d * 0.7;
+    const inside = i >= 4;
+    const isG = i === 5;
+    g.fillStyle = isG ? 'rgba(33,230,193,0.85)' : inside ? 'rgba(39,142,165,0.85)' : 'rgba(39,142,165,0.75)';
+    g.fillRect(A.x + 8, y + 3, Math.max(2, bw), 8);
+    g.fillStyle = inside ? COL.ink : 'rgba(33,230,193,0.85)';
     g.font = mono(700, 9.5);
-    g.textAlign = isG ? 'right' : 'left';
-    g.fillText(`${d}`, isG ? A.x + 8 + bw - 4 : A.x + 14 + bw, y + 11.5);
+    g.textAlign = inside ? 'right' : 'left';
+    g.fillText(lab, inside ? A.x + 8 + bw - 4 : A.x + 14 + bw, y + 10.5);
   });
   g.fillStyle = 'rgba(230,247,255,0.55)';
   g.font = mono(400, 9);
   g.textAlign = 'left';
-  g.fillText('×13.9 vs 1888 · 面積 ×190', A.x + 8, A.y + A.h - 8);
+  g.fillText('2025 vs 1888 · Ø ×18 · 面積 ×330', A.x + 8, A.y + A.h - 8);
 
   // ---- B: scan / zoom box
   const B = PANELS.B;
@@ -847,8 +940,9 @@ function paintHud(kit, g, rng) {
   const ch = C.h - 66;
   g.strokeStyle = 'rgba(39,142,165,0.3)';
   g.lineWidth = 1;
-  for (let k = 0; k <= 3; k++) {
-    const y = cy0 - (ch * k) / 3;
+  const MW_TOP = RATED_KW / 1000;
+  for (const v of [0, 10, 20, MW_TOP]) {
+    const y = cy0 - (ch * v) / MW_TOP;
     g.beginPath();
     g.moveTo(cx0, y);
     g.lineTo(cx0 + cw, y);
@@ -884,13 +978,7 @@ function paintHud(kit, g, rng) {
   for (const v of [0, 5, 10, 15, 20, 25]) g.fillText(`${v}`, cx0 + (cw * v) / 25, cy0 + 11);
   g.fillText('m/s', cx0 + cw - 8, cy0 + 22);
   g.textAlign = 'right';
-  for (const [k, l] of [
-    [0, '0'],
-    [1, '5'],
-    [2, '10'],
-    [3, '15'],
-  ])
-    g.fillText(l, cx0 - 4, cy0 - (ch * k) / 3 + 3);
+  for (const v of [0, 10, 20, MW_TOP]) g.fillText(`${v}`, cx0 - 4, cy0 - (ch * v) / MW_TOP + 3);
   g.save();
   g.translate(C.x + 9, cy0 - ch / 2);
   g.rotate(-Math.PI / 2);
@@ -903,13 +991,13 @@ function paintHud(kit, g, rng) {
   panelFrame(g, D, 'SIDE · 側視 迎風式', kit);
   const sx = D.x + 104;
   const sb = D.y + D.h - 18;
-  const s = 0.62; // px per (2 m)
-  const hy = sb - GIANT.hub * K * s * 0.5;
+  const s = 0.42; // px per metre in this inset
+  const hy = sb - GIANT.hub * s;
   // sea line
   g.strokeStyle = 'rgba(33,230,193,0.4)';
   g.beginPath();
-  g.moveTo(D.x + 6, sb - 6);
-  g.lineTo(D.x + D.w - 6, sb - 6);
+  g.moveTo(D.x + 6, sb);
+  g.lineTo(D.x + D.w - 6, sb);
   g.stroke();
   // tower
   g.beginPath();
@@ -925,14 +1013,17 @@ function paintHud(kit, g, rng) {
   g.beginPath();
   g.ellipse(sx - 9, hy, 4, 4, 0, 0, TAU);
   glow(g, COL.cyan, 1, 0.9);
-  // rotor plane with 6° tilt and ~4° cone, upwind of the tower
-  const bl = 115 * K * s * 0.5;
+  // rotor plane, upwind of the tower: 6° shaft tilt (nose up) tips the plane back at the top,
+  // ~4° cone bends the blades upwind -> top tip almost vertical, bottom tip well clear of the tower
+  const bl = 153 * s;
   const tilt = (6 * Math.PI) / 180;
+  const cone = (4 * Math.PI) / 180;
+  const rx = sx - 10;
   g.beginPath();
-  g.moveTo(sx - 10, hy);
-  g.lineTo(sx - 10 - Math.sin(tilt) * bl - 3, hy - Math.cos(tilt) * bl);
-  g.moveTo(sx - 10, hy);
-  g.lineTo(sx - 10 + Math.sin(tilt) * bl - 3, hy + Math.cos(tilt) * bl * 0.62);
+  g.moveTo(rx, hy);
+  g.lineTo(rx + Math.sin(tilt - cone) * bl, hy - Math.cos(tilt) * bl);
+  g.moveTo(rx, hy);
+  g.lineTo(rx - Math.sin(tilt + cone) * bl * 0.5, hy + Math.cos(tilt) * bl * 0.5);
   glow(g, COL.cyan, 1.2, 1);
   // wind arrows hitting the rotor first
   g.strokeStyle = rgba(COL.amber, 0.9);
@@ -957,8 +1048,8 @@ function paintHud(kit, g, rng) {
   g.fillText('ROTOR', sx + 22, hy + 16);
 
   // ---- top-left readout panel frame
-  const R = { x: 40, y: 40, w: 290, h: 150 };
-  panelFrame(g, R, 'DIGITAL TWIN ▸ WTG-15MW', kit);
+  const R = READOUT;
+  panelFrame(g, R, 'DIGITAL TWIN ▸ WTG-26MW', kit);
   const labels = [
     ['風速', 'WIND'],
     ['轉速', 'ROTOR'],
@@ -977,11 +1068,33 @@ function paintHud(kit, g, rng) {
     g.fillText(en, R.x + 40, y);
   });
 
+  // ---- global capacity odometer (frame + static captions; digits are live)
+  panelFrame(g, ODO, 'GLOBAL · 全球風電累計裝置容量', kit);
+  g.fillStyle = 'rgba(39,142,165,0.3)';
+  g.fillRect(ODO.x + 10, ODO.y + 72, ODO.w - 20, 4);
+  const fx = ODO.x + 10 + (ODO.w - 20) * (1000 / 1400);
+  g.strokeStyle = COL.amber;
+  g.lineWidth = 1.2;
+  g.beginPath();
+  g.moveTo(fx, ODO.y + 77);
+  g.lineTo(fx, ODO.y + 53);
+  g.stroke();
+  g.fillStyle = COL.amber;
+  g.beginPath();
+  g.moveTo(fx, ODO.y + 53);
+  g.lineTo(fx + 9, ODO.y + 56.5);
+  g.lineTo(fx, ODO.y + 60);
+  g.closePath();
+  g.fill();
+  g.font = mono(700, 12.5);
+  g.textAlign = 'right';
+  g.fillText('2023 破 1 TW', fx - 5, ODO.y + 66);
+
   // ---- status bar
   g.font = mono(400, 9.5);
   g.fillStyle = 'rgba(33,230,193,0.65)';
   g.textAlign = 'left';
-  g.fillText('DT-SYNC 10 Hz ▸ SENSORS 64/64 OK ▸ SCALE 1 px = 0.5 m ▸ SECTION A–A', 40, 958);
+  g.fillText('DT-SYNC 10 Hz ▸ SENSORS 64/64 OK ▸ SCALE 1.5 px = 1 m ▸ SECTION A–A', 40, 958);
 }
 
 // =============================================================================
@@ -1062,9 +1175,9 @@ function drawSmallRotor(ctx, tb, t) {
   const ang = (t * tb.rpm * TAU) / 60 + tb.phase;
   ctx.beginPath();
   if (tb.id === 'brush') {
-    // 144 cedar blades (drawn as 48 radial slats), two rims
-    for (let i = 0; i < 48; i++) {
-      const a = ang + (i * TAU) / 48;
+    // 144 cedar blades (drawn as 36 radial slats at this scale), two rims
+    for (let i = 0; i < 36; i++) {
+      const a = ang + (i * TAU) / 36;
       ctx.moveTo(cx + Math.cos(a) * R * 0.3, cy + Math.sin(a) * R * 0.3);
       ctx.lineTo(cx + Math.cos(a + 0.05) * R, cy + Math.sin(a + 0.05) * R);
     }
@@ -1092,8 +1205,8 @@ function drawSmallRotor(ctx, tb, t) {
       ctx.moveTo(cx, cy);
       ctx.lineTo(cx + ca * r0, cy + sa * r0);
     }
-    ctx.moveTo(cx + 4, cy);
-    ctx.arc(cx, cy, 4, 0, TAU);
+    ctx.moveTo(cx + 3, cy);
+    ctx.arc(cx, cy, 3, 0, TAU);
     glow(ctx, COL.cyan, 0.9, 0.95);
   } else if (tb.id === 'gedser') {
     // three blades held by stays (front strut + blade-to-blade ties)
@@ -1114,9 +1227,9 @@ function drawSmallRotor(ctx, tb, t) {
     glow(ctx, COL.teal, 0.6, 0.8);
     return;
   } else {
-    for (let i = 0; i < 3; i++) bladePath(ctx, cx, cy, ang + (i * TAU) / 3, 2.5, R, 3.3 * K, true);
-    ctx.moveTo(cx + 3, cy);
-    ctx.arc(cx, cy, 3, 0, TAU);
+    for (let i = 0; i < 3; i++) bladePath(ctx, cx, cy, ang + (i * TAU) / 3, 2, R, 3.3 * K, true);
+    ctx.moveTo(cx + 2.4, cy);
+    ctx.arc(cx, cy, 2.4, 0, TAU);
     glow(ctx, COL.cyan, 0.9, 0.95);
   }
 }
@@ -1140,13 +1253,13 @@ function drawGiantRotor(ctx, t, ang, tel) {
   ctx.lineWidth = 1;
   ctx.stroke();
   ctx.setLineDash([]);
-  // nacelle box behind the hub (front view)
+  // house-sized nacelle box behind the hub (front view, ~12 m)
   ctx.beginPath();
-  ctx.rect(cx - 12, cy - 13, 24, 24);
+  ctx.rect(cx - 6 * K, cy - 6.5 * K, 12 * K, 12 * K);
   glow(ctx, COL.teal, 1.1, 0.9);
   // blades
   ctx.beginPath();
-  for (let i = 0; i < 3; i++) bladePath(ctx, cx, cy, ang + (i * TAU) / 3, GIANT.hubR * K, R, 5.8 * K, true);
+  for (let i = 0; i < 3; i++) bladePath(ctx, cx, cy, ang + (i * TAU) / 3, GIANT.hubR * K, R, 6.5 * K, true);
   glow(ctx, COL.cyan, 1.25, 1);
   // pitch indicator ticks at the blade roots (rotate with pitch)
   // spinner
@@ -1204,15 +1317,17 @@ function billPath(ctx, rig) {
 
 function drawWireRider(ctx, kit, rig, scene, t, glowA = 1) {
   const pin = { ...(scene.pinwheel || { type: 'three' }), type: 'three' };
-  // "white" plumage: faint light fill under the wireframe
+  // "white" plumage: a dark screen behind (so the busy plot does not show through), then a
+  // pale light fill under the wireframe
   ctx.save();
-  ctx.fillStyle = 'rgba(230,247,255,0.16)';
   const b = rig.body;
   ctx.beginPath();
   ctx.ellipse(b.x, b.y, b.rx, b.ry, b.tilt, 0, TAU);
-  ctx.fill();
-  ctx.beginPath();
+  ctx.moveTo(rig.head.x + rig.head.r, rig.head.y);
   ctx.arc(rig.head.x, rig.head.y, rig.head.r, 0, TAU);
+  ctx.fillStyle = 'rgba(4,16,28,0.6)';
+  ctx.fill();
+  ctx.fillStyle = 'rgba(230,247,255,0.22)';
   ctx.fill();
   ctx.restore();
   // glow pass + crisp pass
@@ -1251,28 +1366,29 @@ export function render(kit, slot, scene, params) {
   const gag = !isThumbnail;
   ctx.save();
   const fr = fontsReady() ? 'ok' : 'fb';
-  const bg = kit.bake(`giants_bg_${fr}_v2`, P, P, (g, rng) => paintBackground(kit, g, rng));
-  const hud = kit.bake(`giants_hud_${fr}_v3`, P, P, (g, rng) => paintHud(kit, g, rng));
+  const bg = kit.bake(`giants_bg_${fr}_v5`, P, P, (g, rng) => paintBackground(kit, g, rng));
+  const hud = kit.bake(`giants_hud_${fr}_v6`, P, P, (g, rng) => paintHud(kit, g, rng));
   const overlay = kit.bake('giants_overlay_v1', P, P, (g) => paintOverlay(kit, g));
+  const card = kit.bake(`giants_card_${fr}_v1`, LABEL.w, LABEL.h, (g) => paintGiantLabel(g, kit));
   ctx.drawImage(bg, 0, 0);
 
   const tel = telemetry(t, lt, gag);
   const mono = (w, s) => `${w} ${s}px ${kit.FONT.mono}`;
   const qt = Math.floor(t * 10) / 10; // data refresh 10 Hz
 
-  // ---- sea surface: animated wave wireframe (two layers)
+  // ---- sea surface beyond the shore: animated wave wireframe (two layers)
   ctx.save();
   ctx.beginPath();
-  for (let x = SHORE_X - 10; x <= P; x += 8) {
-    const y = GY + 2.2 * Math.sin(x * 0.045 - t * 1.6) + 1.2 * Math.sin(x * 0.11 + t * 2.3);
-    if (x === SHORE_X - 10) ctx.moveTo(x, y);
+  for (let x = SHORE_X + 4; x <= P; x += 8) {
+    const y = SEA_Y + 1.6 * Math.sin(x * 0.045 - t * 1.6) + 0.9 * Math.sin(x * 0.11 + t * 2.3);
+    if (x === SHORE_X + 4) ctx.moveTo(x, y);
     else ctx.lineTo(x, y);
   }
   glow(ctx, COL.cyan, 1, 0.8);
   ctx.beginPath();
-  for (let x = SHORE_X; x <= P; x += 8) {
-    const y = GY + 7 + 1.6 * Math.sin(x * 0.06 - t * 1.2 + 1);
-    if (x === SHORE_X) ctx.moveTo(x, y);
+  for (let x = SHORE_X + 12; x <= P; x += 8) {
+    const y = SEA_Y + 6 + 1.2 * Math.sin(x * 0.06 - t * 1.2 + 1);
+    if (x === SHORE_X + 12) ctx.moveTo(x, y);
     else ctx.lineTo(x, y);
   }
   ctx.strokeStyle = 'rgba(33,230,193,0.3)';
@@ -1280,14 +1396,12 @@ export function render(kit, slot, scene, params) {
   ctx.stroke();
   ctx.restore();
 
-  // ---- export power flowing ashore along the cable (speed ∝ power)
+  // ---- power flowing down the tower and along the buried cable to the grid (speed ∝ power)
   {
     const pts = [
-      [GIANT.x + 2, my(120)],
-      [GIANT.x + 2, SEABED_Y + 6],
-      [SHORE_X + 60, SEABED_Y + 6],
-      [SHORE_X - 4, GY + 14],
-      [30, GY + 14],
+      [GIANT.x + 2, my(130)],
+      [GIANT.x + 2, GY + 20],
+      [30, GY + 20],
     ];
     const segs = [];
     let total = 0;
@@ -1296,7 +1410,7 @@ export function render(kit, slot, scene, params) {
       segs.push(l);
       total += l;
     }
-    const speed = 30 + 60 * (tel.pw / 15000);
+    const speed = 30 + 60 * (tel.pw / RATED_KW);
     const off = (t * speed) % 34;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
@@ -1320,8 +1434,8 @@ export function render(kit, slot, scene, params) {
     drawSmallRotor(ctx, tb, t);
   }
 
-  // ---- the giant: slow rotor (~6–7 rpm)
-  const ang = t * 0.66 + 0.07 * Math.max(0, Math.min(lt, 8) - 4) - Math.PI / 2;
+  // ---- the giant: slow rotor (~5 rpm)
+  const ang = t * 0.55 + 0.05 * Math.max(0, Math.min(lt, 8) - 4) - Math.PI / 2;
   const tips = drawGiantRotor(ctx, t, ang, tel);
 
   // nacelle LiDAR scan pattern (rotating ring of measurement points)
@@ -1332,7 +1446,7 @@ export function render(kit, slot, scene, params) {
   const hyy = my(GIANT.hub);
   for (let k = 0; k < 10; k++) {
     const a = t * 1.4 + (k * TAU) / 10;
-    const r = 34 + 4 * Math.sin(t * 2 + k);
+    const r = 30 + 4 * Math.sin(t * 2 + k);
     ctx.globalAlpha = 0.3 + 0.7 * ((k + Math.floor(t * 10)) % 10 === 0 ? 1 : 0.3);
     ctx.fillRect(hx + Math.cos(a) * r - 1, hyy + Math.sin(a) * r * 0.9 - 1, 2, 2);
   }
@@ -1344,8 +1458,8 @@ export function render(kit, slot, scene, params) {
   const sensors = [
     { x: GIANT.x, y: hyy, id: 'NAC' },
     ...tips.map((p, i) => ({ x: p.x, y: p.y, id: `B${i + 1}` })),
-    { x: GIANT.x, y: my(22) - 6, id: 'TP' },
-    { x: GIANT.x, y: SEABED_Y, id: 'MP' },
+    { x: GIANT.x, y: GY - 12, id: 'TB' },
+    { x: GIANT.x, y: GY + 5 * K + 6, id: 'FD' },
     { x: TURBINES[3].x, y: my(70), id: '' },
   ];
   sensors.forEach((sn, i) => {
@@ -1362,8 +1476,9 @@ export function render(kit, slot, scene, params) {
     const p = tips[0];
     const right = p.x > GIANT.x;
     const tx = p.x + (right ? -14 : 14);
-    const ty = p.y + (p.y < my(GIANT.hub) ? 18 : -10);
-    if (p.y > 60 && p.y < 560) {
+    const ty = p.y + 18;
+    // only in the upper-right quadrant: elsewhere it would collide with the ring tags / label block
+    if (right && p.x > GIANT.x + 40 && p.y > 100 && p.y < my(GIANT.hub) - 30) {
       ctx.font = mono(400, 10);
       ctx.textAlign = right ? 'right' : 'left';
       ctx.fillStyle = 'rgba(230,247,255,0.85)';
@@ -1378,12 +1493,18 @@ export function render(kit, slot, scene, params) {
     brackets(ctx, GIANT.x - R, my(GIANT.hub) - R, R * 2, R * 2, 22, COL.cyan, 1.4, 0.75);
   }
 
-  // ---- tiny true-scale spoonbill cyclist (2 m tall → 4 px) at the shore
-  const tinyX = 300 + 4 * clamp(lt, -8, 8.5);
+  // ---- the giant's label card, above its rotor
+  ctx.drawImage(card, LABEL.x, LABEL.y);
+
+  // ---- tiny true-scale spoonbill cyclist (2 m tall → 3 px) among the old machines
+  const tinyX = 270 + 3 * clamp(lt, -8, 8.5);
   const tinyY = GY - 0.5;
   {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
+    ctx.translate(tinyX, tinyY);
+    ctx.scale(k2, k2);
+    ctx.translate(-tinyX, -tinyY);
     ctx.strokeStyle = '#e6f7ff';
     ctx.lineWidth = 0.8;
     ctx.beginPath();
@@ -1405,15 +1526,15 @@ export function render(kit, slot, scene, params) {
   // readouts (10 Hz refresh)
   {
     const tq = telemetry(qt, lt - (t - qt), gag);
-    const R = { x: 40, y: 40, w: 290 };
+    const R = READOUT;
     const vals = [
       [`${tq.ws.toFixed(1)}`, 'm/s', tq.ws / 14],
       [`${tq.rpm.toFixed(1)}`, 'rpm', tq.rpm / 8],
       [`${tq.pitch.toFixed(1)}`, '°', tq.pitch / 6],
-      [`${fmtInt(tq.pw)}`, 'kW', tq.pw / 15000],
+      [`${fmtInt(tq.pw)}`, 'kW', tq.pw / RATED_KW],
       [`${tq.tip.toFixed(0)}`, 'm/s', tq.tip / 100],
     ];
-    const rated = tq.pw >= 14999;
+    const rated = tq.pw >= RATED_KW - 1;
     vals.forEach(([v, u, f], i) => {
       const y = R.y + 40 + i * 21;
       const hi = i === 3 && rated;
@@ -1449,7 +1570,7 @@ export function render(kit, slot, scene, params) {
       const tt = t - 6 + (k / 40) * 6;
       const tl = telemetry(tt, lt - (t - tt), gag);
       const x = R.x + 10 + k * 6.8;
-      const y = R.y + 146 - 16 * (tl.pw / 15000);
+      const y = R.y + 146 - 16 * (tl.pw / RATED_KW);
       if (k === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     }
@@ -1464,7 +1585,7 @@ export function render(kit, slot, scene, params) {
     const cw = C.w - 38;
     const ch = C.h - 66;
     const x = cx0 + (cw * clamp(tel.ws, 0, 25)) / 25;
-    const y = cy0 - ch * (tel.pw / 15000);
+    const y = cy0 - ch * (tel.pw / RATED_KW);
     ctx.setLineDash([2, 3]);
     ctx.strokeStyle = 'rgba(255,201,90,0.6)';
     ctx.lineWidth = 1;
@@ -1475,13 +1596,14 @@ export function render(kit, slot, scene, params) {
     ctx.stroke();
     ctx.setLineDash([]);
     node(ctx, x, y, 2.6, COL.amber, 1);
+    // readout in the empty lower-right of the plot (clear of the rated plateau)
     ctx.font = mono(700, 12);
-    ctx.fillStyle = tel.pw >= 14999 ? COL.amber : COL.pale;
-    ctx.textAlign = 'left';
-    ctx.fillText(`${fmtInt(tel.pw)} kW`, cx0 + 6, C.y + 35);
+    ctx.fillStyle = tel.pw >= RATED_KW - 1 ? COL.amber : COL.pale;
+    ctx.textAlign = 'right';
+    ctx.fillText(`${fmtInt(tel.pw)} kW`, cx0 + cw - 4, cy0 - ch * 0.42);
     ctx.font = mono(400, 9);
     ctx.fillStyle = 'rgba(230,247,255,0.7)';
-    ctx.fillText(`@ ${tel.ws.toFixed(1)} m/s`, cx0 + 6, C.y + 46);
+    ctx.fillText(`@ ${tel.ws.toFixed(1)} m/s`, cx0 + cw - 4, cy0 - ch * 0.42 + 12);
   }
 
   // ---- scan box / gag: lock onto the true-scale cyclist
@@ -1528,7 +1650,7 @@ export function render(kit, slot, scene, params) {
       ctx.font = mono(700, 10);
       ctx.fillStyle = COL.amber;
       ctx.textAlign = 'left';
-      ctx.fillText('TARGET LOCK ×58', B.x + 150, B.y + 40);
+      ctx.fillText('TARGET LOCK ×38', B.x + 150, B.y + 40);
       ctx.font = `700 19px ${kit.FONT.sans}`;
       ctx.fillStyle = COL.pale;
       ctx.fillText('黑面琵鷺', B.x + 150, B.y + 66);
@@ -1538,9 +1660,9 @@ export function render(kit, slot, scene, params) {
       ctx.font = mono(400, 9);
       ctx.fillStyle = 'rgba(230,247,255,0.8)';
       ctx.fillText('身高 ≈ 2 m (含單車)', B.x + 150, B.y + 112);
-      ctx.fillText('巨機 15,000 kW', B.x + 150, B.y + 128);
+      ctx.fillText(`巨機 ${fmtInt(RATED_KW)} kW`, B.x + 150, B.y + 128);
       ctx.fillStyle = 'rgba(33,230,193,0.95)';
-      ctx.fillText('= 150,000 鳥力', B.x + 150, B.y + 142);
+      ctx.fillText(`= ${fmtInt(RATED_KW * 10)} 鳥力`, B.x + 150, B.y + 142);
       ctx.fillStyle = 'rgba(230,247,255,0.55)';
       ctx.fillText('(1 鳥力 ≈ 0.1 kW)', B.x + 150, B.y + 156);
       ctx.globalAlpha = 1;
@@ -1586,15 +1708,46 @@ export function render(kit, slot, scene, params) {
     }
     glow(ctx, COL.amber, 1, lock);
     const B = PANELS.B;
-    const ly = lerp(tinyY + ringR, B.y, sstep(4.0, 4.45, lt));
+    const grow = sstep(4.0, 4.45, lt);
+    const ly = lerp(tinyY + ringR, B.y, grow);
     ctx.beginPath();
     ctx.moveTo(tinyX, tinyY - 3 + ringR);
-    ctx.lineTo(tinyX + (ly - tinyY) * 0.12, ly);
+    ctx.lineTo(lerp(tinyX, B.x + 26, grow), ly);
     glow(ctx, COL.amber, 1, lock);
     ctx.font = mono(700, 9.5);
     ctx.fillStyle = rgba(COL.amber, lock);
     ctx.textAlign = 'left';
     ctx.fillText('2 m', tinyX + ringR + 6, tinyY - 8);
+  }
+
+  // ---- global capacity odometer (bar 4: 1,000+ GW in 2023 → 1,299 GW in 2025)
+  {
+    const od = odometer(lt, isThumbnail);
+    const txt = od.stage === 0 ? '1,000+' : fmtInt(od.v);
+    const hi = od.stage === 2;
+    ctx.font = mono(700, 24);
+    ctx.textAlign = 'left';
+    ctx.fillStyle = hi ? COL.amber : COL.pale;
+    ctx.fillText(txt, ODO.x + 10, ODO.y + 46);
+    const w = ctx.measureText(txt).width;
+    ctx.font = mono(700, 13);
+    ctx.fillStyle = 'rgba(33,230,193,0.9)';
+    ctx.fillText('GW', ODO.x + 14 + w, ODO.y + 46);
+    if (hi) {
+      ctx.font = mono(700, 14);
+      ctx.fillStyle = COL.amber;
+      ctx.textAlign = 'right';
+      ctx.fillText('2025', ODO.x + ODO.w - 10, ODO.y + 44);
+    }
+    // fill bar on a 0–1,400 GW scale
+    const f = Math.min(1, od.v / 1400);
+    ctx.fillStyle = hi ? COL.amber : rgba(COL.cyan, 0.85);
+    ctx.fillRect(ODO.x + 10, ODO.y + 72, (ODO.w - 20) * f, 4);
+    if (od.stage === 1) {
+      // rolling tick
+      ctx.fillStyle = rgba(COL.pale, 0.9);
+      ctx.fillRect(ODO.x + 10 + (ODO.w - 20) * f - 1, ODO.y + 69, 2, 10);
+    }
   }
 
   // ---- overlay: scanlines, vignette, viewport brackets

@@ -13,30 +13,35 @@
 //   1. score.js turns the leitmotif into 22 sections (intro, 20 eras, outro) of note events.
 //   2. Notes are synthesised as precomputed buffers (instruments.js: Karplus–Strong strings,
 //      modal bars/bells, FM, subtractive synths, noise percussion) — in a small pool of
-//      module Web Workers when available, otherwise on the main thread in ~20 ms slices.
+//      Web Workers when available (module worker in dev, Blob-URL classic worker in the
+//      single-file build), otherwise on the main thread in ~20 ms slices. Both paths give
+//      bit-identical samples.
 //   3. Each section is mixed into a dry stem plus hall/room reverb sends with per-track
 //      FX (vibraphone tremolo, ping-pong delay, side-chain ducking).
 //   4. Each section's reverb sends are rendered by its own OfflineAudioContext through
 //      two ConvolverNodes with procedurally generated impulse responses (at half rate:
 //      reverb tails carry little above 10 kHz, and it quarters the convolution cost).
 //   5. Stems are loudness-matched per era (K-weighted RMS) and overlap-added: each era's
-//      pickup fades in over the beat before its bar line, its tail fades out over the beat
-//      after the next one — a one-beat crossfade aligned to the bar line.
-//   6. The stereo wind bed (foley.js) is added, then a 5 ms look-ahead peak limiter and a
-//      final normalisation to a -1 dBFS sample peak.
+//      one-beat pickup plays over the previous era's last beat, and the previous era's tail
+//      fades out over the first beat of the new bar — transitions land on the bar line.
+//   6. The stereo wind bed (foley.js) is added, then a 5 ms look-ahead peak limiter
+//      (smoothed attack, 120 ms release) and a final normalisation to a -1 dBFS sample peak.
+//      The long master loops run in slices so the player keeps animating meanwhile.
 
 import { TOTAL_DURATION } from '../beat/timeline.js';
 import { buildScore, windinessAt } from './score.js';
-import { renderVoice, voiceKey, clearVoiceCache } from './instruments.js';
-import { WindGen } from './foley.js';
+import { WindGen, windTable } from './foley.js';
+import { mixSection, packSection } from './mix.js';
 import { mulberry32, eq, kRms, peakOf, dbToGain, clamp } from './dsp.js';
 
 const MUSIC_TARGET = 0.089; // loudness (√(K-RMS·RMS)) each era stem is matched to (≈ -20 dB)
 const WIND_LEVEL = 0.36; // wind K-RMS relative to MUSIC_TARGET at windiness 1
 const CEILING = dbToGain(-1); // final sample peak: -1 dBFS
-const XFADE = 0.5; // one beat at 120 BPM
-const MAX_INFLIGHT = 3; // concurrent reverb renders
-const LOOKAHEAD = 4; // sections whose notes are queued ahead in the worker pool
+const XFADE = 0.5; // one beat at 120 BPM: an era's tail fades out under the next downbeat
+const PICKUP_GUARD = 0.04; // click guard at the start of each era's pickup beat
+const WET_BATCH = 4; // sections per reverb OfflineAudioContext
+const MAX_INFLIGHT = 2; // reverb batches rendering concurrently
+const LOOKAHEAD = 6; // sections queued ahead in the worker pool
 const WIND_SEED = 4242;
 
 let lastStats = null;
@@ -119,243 +124,196 @@ function makeIR(sr, { seconds, rt60, predelay, bright, dark, early, seed }) {
 // -----------------------------------------------------------------------------
 // Worker pool for note synthesis (falls back to the main thread when unavailable)
 // -----------------------------------------------------------------------------
+// Where the worker comes from:
+//   - single-file build (tools/build.mjs): the worker bundle is injected as a string in
+//     window.__WIND_SYNTH_WORKER_SRC__ and started as a classic worker from a Blob URL;
+//   - dev / multi-file hosting: a module worker next to this file.
+// Every failure mode (no Worker, blocked URL, script error, no answer, a worker dying
+// mid-render) degrades to the main-thread path, which renders bit-identical samples.
+const WORKER_SRC_GLOBAL = '__WIND_SYNTH_WORKER_SRC__';
+const JOB_TIMEOUT_MS = 30000;
+
+function spawnWorkers(n) {
+  const src = typeof globalThis !== 'undefined' ? globalThis[WORKER_SRC_GLOBAL] : null;
+  if (typeof src === 'string' && src.length && typeof Blob !== 'undefined' && typeof URL !== 'undefined' && URL.createObjectURL) {
+    let blobUrl = null;
+    const workers = [];
+    try {
+      blobUrl = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+      for (let i = 0; i < n; i++) workers.push(new Worker(blobUrl));
+      return { workers, blobUrl, kind: 'blob' };
+    } catch (e) {
+      workers.forEach((w) => w.terminate());
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      // fall through to the module worker
+    }
+  }
+  const workers = [];
+  try {
+    const url = new URL('./synth-worker.js', import.meta.url);
+    for (let i = 0; i < n; i++) workers.push(new Worker(url, { type: 'module' }));
+    return { workers, blobUrl: null, kind: 'module' };
+  } catch (e) {
+    workers.forEach((w) => w.terminate());
+    return null;
+  }
+}
+
 class SynthPool {
-  constructor(workers) {
+  constructor(workers, kind) {
     this.workers = workers;
+    this.kind = kind;
     this.load = workers.map(() => 0);
-    this.pending = new Map();
+    this.dead = workers.map(() => false);
+    this.pending = new Map(); // id -> { resolve, reject, worker, timer }
     this.nextId = 1;
-    workers.forEach((w) => {
+    workers.forEach((w, wi) => {
       w.onmessage = (e) => {
-        const d = e.data;
+        const d = e.data || {};
         const p = this.pending.get(d.id);
         if (!p) return;
-        this.pending.delete(d.id);
+        this.settle(d.id);
         if (d.type === 'error') p.reject(new Error(d.message));
         else p.resolve(d);
       };
       w.onerror = (e) => {
-        for (const p of this.pending.values()) p.reject(new Error((e && e.message) || 'worker error'));
-        this.pending.clear();
+        if (e && e.preventDefault) e.preventDefault(); // handled here: no uncaught-error console noise
+        this.kill(wi, (e && e.message) || 'worker error');
       };
+      w.onmessageerror = () => this.kill(wi, 'worker message could not be deserialised');
     });
   }
 
   static async create(n, timeoutMs = 5000) {
     if (typeof Worker === 'undefined' || n < 1) return null;
-    let url;
-    try {
-      url = new URL('./synth-worker.js', import.meta.url);
-    } catch (e) {
-      return null;
-    }
-    const workers = [];
-    try {
-      for (let i = 0; i < n; i++) workers.push(new Worker(url, { type: 'module' }));
-    } catch (e) {
-      workers.forEach((w) => w.terminate());
-      return null;
-    }
+    const spawned = spawnWorkers(n);
+    if (!spawned) return null;
+    const { workers, blobUrl, kind } = spawned;
     const ok = await Promise.all(
       workers.map(
         (w) =>
           new Promise((res) => {
-            const to = setTimeout(() => res(false), timeoutMs);
-            w.onmessage = (e) => {
-              if (e.data && e.data.type === 'pong') {
-                clearTimeout(to);
-                res(true);
-              }
-            };
-            w.onerror = () => {
+            const done = (v) => {
               clearTimeout(to);
-              res(false);
+              w.onmessage = null;
+              w.onerror = null;
+              res(v);
+            };
+            const to = setTimeout(() => done(false), timeoutMs);
+            w.onmessage = (e) => {
+              if (e.data && e.data.type === 'pong') done(true);
+            };
+            w.onerror = (e) => {
+              if (e && e.preventDefault) e.preventDefault();
+              done(false);
             };
             w.postMessage({ type: 'ping', id: 0 });
           }),
       ),
     );
-    if (!ok.every(Boolean)) {
-      workers.forEach((w) => w.terminate());
-      return null;
-    }
-    return new SynthPool(workers);
+    // every worker has loaded its script (or given up): the Blob URL is no longer needed
+    if (blobUrl) URL.revokeObjectURL(blobUrl);
+    const good = workers.filter((w, i) => ok[i]);
+    workers.forEach((w, i) => {
+      if (!ok[i]) w.terminate();
+    });
+    return good.length ? new SynthPool(good, kind) : null;
   }
 
-  post(i, msg, transfer = []) {
+  settle(id) {
+    const p = this.pending.get(id);
+    if (!p) return;
+    clearTimeout(p.timer);
+    this.load[p.worker] -= p.cost;
+    this.pending.delete(id);
+  }
+
+  /** A worker that errored or hung is retired; its jobs fail over to the main thread. */
+  kill(wi, why) {
+    if (!this.dead[wi]) {
+      this.dead[wi] = true;
+      try {
+        this.workers[wi].terminate();
+      } catch (e) {
+        /* ignore */
+      }
+    }
+    for (const [id, p] of [...this.pending]) {
+      if (p.worker !== wi) continue;
+      this.settle(id);
+      p.reject(new Error(why));
+    }
+  }
+
+  get alive() {
+    return this.dead.some((d) => !d);
+  }
+
+  /** Post a job to worker i; `cost` counts towards its queue until the job settles. */
+  post(i, msg, transfer = [], cost = 1) {
+    if (this.dead[i]) return Promise.reject(new Error('worker retired'));
     const id = this.nextId++;
+    this.load[i] += cost;
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
-      this.workers[i].postMessage({ ...msg, id }, transfer);
+      const timer = setTimeout(() => this.kill(i, 'worker timed out'), JOB_TIMEOUT_MS);
+      this.pending.set(id, { resolve, reject, worker: i, timer, cost });
+      try {
+        this.workers[i].postMessage({ ...msg, id }, transfer);
+      } catch (e) {
+        this.settle(id);
+        reject(e);
+      }
     });
   }
 
   leastLoaded() {
-    let b = 0;
-    for (let i = 1; i < this.load.length; i++) if (this.load[i] < this.load[b]) b = i;
-    return b;
+    let b = -1;
+    for (let i = 0; i < this.load.length; i++) if (!this.dead[i] && (b < 0 || this.load[i] < this.load[b])) b = i;
+    return b < 0 ? 0 : b;
   }
 
   terminate() {
+    for (const [id, p] of [...this.pending]) {
+      this.settle(id);
+      p.reject(new Error('pool terminated'));
+    }
     this.workers.forEach((w) => w.terminate());
+    this.dead = this.dead.map(() => true);
   }
 }
 
-/** Queue all distinct notes of a section on the pool; resolves to Map(key -> Float32Array). */
-function requestSectionNotes(pool, sec, sr) {
-  const jobs = new Map();
-  for (const ev of sec.events) {
-    if (!jobs.has(ev.key)) jobs.set(ev.key, { key: ev.key, p: ev.p || {}, cost: 0.3 + Math.min(ev.dur, 3) });
-  }
-  const per = pool.workers.map(() => []);
-  for (const j of [...jobs.values()].sort((a, b) => b.cost - a.cost)) {
-    const w = pool.leastLoaded();
-    per[w].push(j);
-    pool.load[w] += j.cost;
-  }
-  return Promise.all(per.map((js, i) => (js.length ? pool.post(i, { type: 'notes', sr, jobs: js.map(({ key, p }) => ({ key, p })) }) : null))).then((results) => {
-    const map = new Map();
-    for (const r of results) if (r) r.keys.forEach((k, i) => map.set(k, r.bufs[i]));
-    return map;
-  });
-}
-
-// -----------------------------------------------------------------------------
-// Section mixing (JS)
-// -----------------------------------------------------------------------------
-function applyTrackFx(L, R, fx, sr, startT) {
-  if (!fx) return;
-  const n = L.length;
-  if (fx.trem) {
-    const { rate, depth } = fx.trem;
-    for (let i = 0; i < n; i++) {
-      const m = 1 - depth * (0.5 + 0.5 * Math.sin(2 * Math.PI * rate * (startT + i / sr)));
-      L[i] *= m;
-      R[i] *= m;
-    }
-  }
-  if (fx.duck) {
-    const { times, depth, release } = fx.duck;
-    let k = 0;
-    for (let i = 0; i < n; i++) {
-      const t = startT + i / sr;
-      while (k + 1 < times.length && times[k + 1] <= t) k++;
-      const dt = t - times[k];
-      let env = 0;
-      if (dt >= 0) env = dt < 0.006 ? dt / 0.006 : Math.exp(-(dt - 0.006) / release);
-      const g = 1 - depth * env;
-      L[i] *= g;
-      R[i] *= g;
-    }
-  }
-  if (fx.delay) {
-    const { time, fb, mix, pingpong } = fx.delay;
-    const D = Math.max(1, Math.round(time * sr));
-    const eL = new Float32Array(n);
-    const eR = new Float32Array(n);
-    const a = 1 - Math.exp((-2 * Math.PI * 3800) / sr);
-    let zl = 0;
-    let zr = 0;
-    for (let i = D; i < n; i++) {
-      if (pingpong) {
-        zl += a * (0.5 * (L[i - D] + R[i - D]) + fb * eR[i - D] - zl);
-        zr += a * (fb * eL[i - D] - zr);
-      } else {
-        zl += a * (L[i - D] + fb * eL[i - D] - zl);
-        zr += a * (R[i - D] + fb * eR[i - D] - zr);
-      }
-      eL[i] = zl;
-      eR[i] = zr;
-    }
-    for (let i = 0; i < n; i++) {
-      L[i] += mix * eL[i];
-      R[i] += mix * eR[i];
-    }
-  }
+/** Rough relative cost of mixing a section (for balancing the worker queue). */
+function sectionCost(sec) {
+  let c = 0;
+  for (const ev of sec.events) c += 0.3 + Math.min(ev.dur, 3);
+  return c;
 }
 
 /**
- * Mix one section: a full-rate dry stem plus half-rate hall/room sends (decimated with a
- * [1/4 1/2 1/4] kernel). Track buffers are scratch arrays reused across tracks/sections.
+ * Render the reverb returns of a batch of sections through ONE OfflineAudioContext (half
+ * rate). Setting a ConvolverNode's buffer prepares the IR's FFT kernels on the main thread,
+ * so one context per batch instead of per section saves most of that work. Sections are laid
+ * end to end with an IR-length silent gap, so no reverb tail bleeds into the next one; each
+ * section gets back the first `half` samples of its own returns ([L, R] or null).
  */
-async function mixSection(sec, sr, maybeYield, scratch, notes) {
-  const len = Math.ceil((sec.end - sec.start) * sr);
-  const half = (len >> 1) + 2;
-  const bus = { len, half, dry: [new Float32Array(len), new Float32Array(len)], hall: null, room: null };
-  const byTrack = new Map();
-  for (const ev of sec.events) {
-    if (!byTrack.has(ev.tr)) byTrack.set(ev.tr, []);
-    byTrack.get(ev.tr).push(ev);
+function renderWetBatch(buses, irs, srHalf) {
+  const gap = Math.max(irs.hall.length, irs.room.length);
+  const offs = [];
+  let total = 0;
+  for (const bus of buses) {
+    offs.push(total);
+    total += bus.half + gap;
   }
-  if (scratch.L.length < len + 2) {
-    scratch.L = new Float32Array(len + 2);
-    scratch.R = new Float32Array(len + 2);
-  }
-  const tL = scratch.L;
-  const tR = scratch.R;
-  for (const [name, evs] of byTrack) {
-    const cfg = sec.tracks[name] || { gain: 0.5, pan: 0, hall: 0.2, room: 0 };
-    tL.fill(0);
-    tR.fill(0);
-    let lo = len;
-    let hi = 0;
-    for (const ev of evs) {
-      const buf = (notes && notes.get(ev.key)) || renderVoice(ev.voice, sr, ev.midi, ev.dur, ev.vel, ev.p || {});
-      const off = Math.round((ev.t - sec.start) * sr);
-      const pan = clamp(cfg.pan + (ev.pan || 0), -1, 1);
-      const th = ((pan + 1) * Math.PI) / 4;
-      const gl = Math.cos(th) * ev.vel;
-      const gr = Math.sin(th) * ev.vel;
-      const i0 = Math.max(0, -off);
-      const i1 = Math.min(buf.length, len - off);
-      if (i1 <= i0) continue;
-      lo = Math.min(lo, off + i0);
-      hi = Math.max(hi, off + i1);
-      for (let i = i0; i < i1; i++) {
-        const v = buf[i];
-        tL[off + i] += v * gl;
-        tR[off + i] += v * gr;
-      }
-      if (!notes) await maybeYield();
-    }
-    if (hi <= lo) continue;
-    if (cfg.fx) {
-      hi = len; // delay tails run to the end of the section
-      applyTrackFx(tL.subarray(0, len), tR.subarray(0, len), cfg.fx, sr, sec.start);
-    }
-    const g = cfg.gain;
-    const [DL, DR] = bus.dry;
-    for (let i = lo; i < hi; i++) {
-      DL[i] += tL[i] * g;
-      DR[i] += tR[i] * g;
-    }
-    for (const key of ['hall', 'room']) {
-      const gs = g * (cfg[key] || 0);
-      if (gs <= 0) continue;
-      if (!bus[key]) bus[key] = [new Float32Array(half), new Float32Array(half)];
-      const [SL, SR] = bus[key];
-      const j0 = Math.max(1, lo >> 1);
-      const j1 = Math.min(half, (hi >> 1) + 1, (len - 1) >> 1);
-      for (let j = j0; j < j1; j++) {
-        const i = j << 1;
-        SL[j] += (0.25 * tL[i - 1] + 0.5 * tL[i] + 0.25 * tL[i + 1]) * gs;
-        SR[j] += (0.25 * tR[i - 1] + 0.5 * tR[i] + 0.25 * tR[i + 1]) * gs;
-      }
-    }
-    await maybeYield();
-  }
-  return bus;
-}
-
-/** Render a section's reverb returns through its own OfflineAudioContext (half rate). */
-function renderWetOAC(bus, irs, srHalf) {
-  if (!bus.hall && !bus.room) return Promise.resolve(null);
-  const ctx = new OfflineAudioContext({ numberOfChannels: 2, length: bus.half, sampleRate: srHalf });
-  for (const key of ['hall', 'room']) {
-    if (!bus[key]) continue;
-    const b = ctx.createBuffer(2, bus.half, srHalf);
-    b.copyToChannel(bus[key][0], 0);
-    b.copyToChannel(bus[key][1], 1);
+  const used = ['hall', 'room'].filter((key) => buses.some((b) => b[key]));
+  if (!used.length) return Promise.resolve(buses.map(() => null));
+  const ctx = new OfflineAudioContext({ numberOfChannels: 2, length: total, sampleRate: srHalf });
+  for (const key of used) {
+    const b = ctx.createBuffer(2, total, srHalf);
+    buses.forEach((bus, i) => {
+      if (!bus[key]) return;
+      b.copyToChannel(bus[key][0], 0, offs[i]);
+      b.copyToChannel(bus[key][1], 1, offs[i]);
+    });
     const s = ctx.createBufferSource();
     s.buffer = b;
     const cv = ctx.createConvolver();
@@ -365,47 +323,119 @@ function renderWetOAC(bus, irs, srHalf) {
     cv.connect(ctx.destination);
     s.start(0);
   }
-  return ctx.startRendering();
+  return ctx.startRendering().then((out) => {
+    const L = out.getChannelData(0);
+    const R = out.getChannelData(1);
+    return buses.map((bus, i) => (bus.hall || bus.room ? [L.subarray(offs[i], offs[i] + bus.half), R.subarray(offs[i], offs[i] + bus.half)] : null));
+  });
+}
+
+// -----------------------------------------------------------------------------
+// Stem placement (plain top-level loops: they run on the main thread for every section)
+// -----------------------------------------------------------------------------
+/** dst[i] += half-rate `wet` linearly interpolated back up (wet holds len/2 + 2 samples). */
+function addWet(dst, wet, len) {
+  for (let i = 0, j = 0; i < len; i += 2, j++) {
+    const w0 = wet[j];
+    dst[i] += w0;
+    if (i + 1 < len) dst[i + 1] += 0.5 * (w0 + wet[j + 1]);
+  }
+}
+
+function sumSq(x, a, b) {
+  let s = 0;
+  for (let i = a; i < b; i++) s += x[i] * x[i];
+  return s;
+}
+
+/**
+ * out[s0 + i] += stem[i] * gain for i in [i0, i1): a raised-cosine click guard over the first
+ * `guardN` samples, unity in the body, a cos² fade over `tailLen` samples after `tailStart`.
+ */
+function addStem(out, stem, s0, i0, i1, g, guardN, tailStart, tailLen) {
+  const gEnd = Math.min(guardN, i1);
+  for (let i = i0; i < gEnd; i++) out[s0 + i] += stem[i] * g * (0.5 - 0.5 * Math.cos((Math.PI * i) / guardN));
+  const bEnd = Math.min(i1, tailStart + 1);
+  for (let i = Math.max(i0, guardN); i < bEnd; i++) out[s0 + i] += stem[i] * g;
+  for (let i = Math.max(bEnd, guardN); i < i1; i++) {
+    const c = Math.cos((((i - tailStart) / tailLen) * Math.PI) / 2);
+    out[s0 + i] += stem[i] * g * c * c;
+  }
 }
 
 // -----------------------------------------------------------------------------
 // Master: look-ahead peak limiter
 // -----------------------------------------------------------------------------
+const CHUNK = 1 << 16; // samples per slice of the long master loops (keeps the player responsive)
+
+/**
+ * Look-ahead peak limiter. Required gain per sample -> sliding minimum over the next `la`
+ * samples -> release smoothing (instant down, 120 ms up) -> moving average over `la`
+ * samples. The final average spans only values that already include each peak's requirement,
+ * so the gain still meets it exactly at the peak, but now ramps down over 5 ms instead of
+ * stepping (a hard gain step is an audible click).
+ */
 async function limitInPlace(L, R, sr, ceiling, maybeYield) {
   const n = L.length;
   const la = Math.max(1, Math.round(0.005 * sr));
   const rel = Math.exp(-1 / (0.12 * sr));
   const req = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    const p = Math.max(Math.abs(L[i]), Math.abs(R[i]));
-    req[i] = p > ceiling ? ceiling / p : 1;
+  let any = false;
+  for (let i0 = 0; i0 < n; i0 += CHUNK) {
+    const i1 = Math.min(n, i0 + CHUNK);
+    for (let i = i0; i < i1; i++) {
+      const a = L[i] < 0 ? -L[i] : L[i];
+      const b = R[i] < 0 ? -R[i] : R[i];
+      const p = a > b ? a : b;
+      if (p > ceiling) {
+        req[i] = ceiling / p;
+        any = true;
+      } else req[i] = 1;
+    }
+    await maybeYield();
   }
-  await maybeYield();
-  // sliding-window minimum over [i, i + la] (monotonic deque)
-  const win = new Float32Array(n);
-  const dq = new Int32Array(n + la + 1);
+  if (!any) return 0;
+  // sliding-window minimum over [i, i + la] (monotonic deque) + release
+  const g = new Float32Array(n);
+  const dq = new Int32Array(n + 1);
   let h = 0;
   let tq = 0;
-  for (let j = 0; j < n + la; j++) {
-    if (j < n) {
-      while (tq > h && req[dq[tq - 1]] >= req[j]) tq--;
-      dq[tq++] = j;
+  let gr = 1;
+  for (let j0 = 0; j0 < n + la; j0 += CHUNK) {
+    const j1 = Math.min(n + la, j0 + CHUNK);
+    for (let j = j0; j < j1; j++) {
+      if (j < n) {
+        while (tq > h && req[dq[tq - 1]] >= req[j]) tq--;
+        dq[tq++] = j;
+      }
+      const i = j - la;
+      if (i >= 0) {
+        while (dq[h] < i) h++;
+        const target = req[dq[h]];
+        gr = target < gr ? target : target + (gr - target) * rel;
+        g[i] = gr;
+      }
     }
-    const i = j - la;
-    if (i >= 0) {
-      while (dq[h] < i) h++;
-      win[i] = req[dq[h]];
-    }
+    await maybeYield();
   }
-  await maybeYield();
-  let g = 1;
+  // moving average of the gain over (i - la, i]
+  const hist = new Float64Array(la).fill(1);
+  let acc = la;
   let reduced = 0;
-  for (let i = 0; i < n; i++) {
-    const target = win[i];
-    g = target < g ? target : target + (g - target) * rel;
-    if (g < 0.999) reduced++;
-    L[i] *= g;
-    R[i] *= g;
+  for (let i0 = 0; i0 < n; i0 += CHUNK) {
+    const i1 = Math.min(n, i0 + CHUNK);
+    for (let i = i0; i < i1; i++) {
+      const k = i % la;
+      acc += g[i] - hist[k];
+      hist[k] = g[i];
+      const s = acc / la;
+      if (s < 0.999) reduced++;
+      L[i] *= s;
+      R[i] *= s;
+    }
+    acc = 0; // re-sum to stop floating-point drift
+    for (let k = 0; k < la; k++) acc += hist[k];
+    await maybeYield();
   }
   return reduced / n;
 }
@@ -419,175 +449,211 @@ export async function renderSoundtrack(sampleRate = 48000, opts = {}) {
   const srHalf = sr / 2;
   const clock = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
   const tStart = clock();
-  const phase = { pool: 0, mix: 0, waitNotes: 0, waitWet: 0, place: 0, wind: 0, master: 0 };
+  const phase = { pool: 0, waitMix: 0, mainMix: 0, waitWet: 0, place: 0, wind: 0, master: 0 };
+  let mainMixed = 0;
   const maybeYield = makeYielder(opts.budgetMs ?? 20);
-  const total = Math.round(TOTAL_DURATION * sr);
-  const L = new Float32Array(total);
-  const R = new Float32Array(total);
-  const irs = {
-    hall: makeIR(srHalf, { seconds: 2.4, rt60: 2.1, predelay: 0.018, bright: 6500, dark: 1800, early: 10, seed: 11 }),
-    room: makeIR(srHalf, { seconds: 0.7, rt60: 0.5, predelay: 0.005, bright: 8000, dark: 2500, early: 14, seed: 23 }),
-  };
-  const sections = buildScore();
-  for (const sec of sections) for (const ev of sec.events) ev.key = voiceKey(ev.voice, ev.midi, ev.dur, ev.vel, ev.p || {});
-  const stats = [];
+  let pool = null;
+  try {
+    const total = Math.round(TOTAL_DURATION * sr);
+    const L = new Float32Array(total);
+    const R = new Float32Array(total);
+    const irs = {
+      hall: makeIR(srHalf, { seconds: 2.4, rt60: 2.1, predelay: 0.018, bright: 6500, dark: 1800, early: 10, seed: 11 }),
+      room: makeIR(srHalf, { seconds: 0.7, rt60: 0.5, predelay: 0.005, bright: 8000, dark: 2500, early: 14, seed: 23 }),
+    };
+    const sections = buildScore();
+    const stats = [];
 
-  let c0 = clock();
-  const hc = typeof navigator !== 'undefined' && navigator.hardwareConcurrency ? navigator.hardwareConcurrency : 2;
-  const pool = opts.workers === false ? null : await SynthPool.create(clamp(hc - 1, 1, 3));
-  phase.pool = clock() - c0;
+    let c0 = clock();
+    const hc = typeof navigator !== 'undefined' && navigator.hardwareConcurrency ? navigator.hardwareConcurrency : 2;
+    pool = opts.workers === false ? null : await SynthPool.create(clamp(hc - 1, 1, 3));
+    const workerCount = pool ? pool.workers.length : 0;
+    const workerKind = pool ? pool.kind : 'main-thread';
+    phase.pool = clock() - c0;
 
-  // wind bed: half rate, in a worker if we have one
-  const windLen = (total >> 1) + 2;
-  let windP = null;
-  if (pool) {
-    const w = pool.leastLoaded();
-    pool.load[w] += 120;
-    windP = pool.post(w, { type: 'wind', sr: srHalf, length: windLen, seed: WIND_SEED });
-  }
+    // wind bed: half rate, in a worker if we have one. The windiness curve is tabulated here
+    // once and shared by both paths, so the worker never needs the score / era data.
+    const windLen = (total >> 1) + 2;
+    const windTab = windTable(windinessAt, windLen, srHalf);
+    let windP = null;
+    if (pool) windP = pool.post(pool.leastLoaded(), { type: 'wind', sr: srHalf, length: windLen, seed: WIND_SEED, table: windTab }, [], 120).catch(() => null);
 
-  const noteReqs = [];
-  const request = (k) => {
-    if (pool && k < sections.length && !noteReqs[k]) noteReqs[k] = requestSectionNotes(pool, sections[k], sr).catch(() => null);
-  };
-  for (let k = 0; k < LOOKAHEAD; k++) request(k);
+    // Each section is mixed into its stem by a worker (the note buffers never leave it), or on
+    // the main thread in slices when there is no pool or a job failed. Stems are then placed
+    // strictly in score order, so the sum is the same whichever path produced them.
+    const mixReqs = [];
+    const request = (k) => {
+      if (!pool || !pool.alive || k >= sections.length || mixReqs[k]) return;
+      const sec = sections[k];
+      mixReqs[k] = pool
+        .post(pool.leastLoaded(), { type: 'mix', sr, sec: packSection(sec) }, [], sectionCost(sec))
+        .then((r) => r.bus)
+        .catch(() => null);
+    };
+    for (let k = 0; k < LOOKAHEAD; k++) request(k);
 
-  const place = (sec, bus, wet) => {
-    const [DL, DR] = bus.dry;
-    const len = bus.len;
-    if (wet) {
-      const wl = wet.getChannelData(0);
-      const wr = wet.getChannelData(1);
-      const hmax = wl.length - 2;
-      for (let i = 0; i < len; i++) {
-        const j = Math.min(i >> 1, hmax);
-        const fr = (i & 1) * 0.5;
-        DL[i] += wl[j] + (wl[j + 1] - wl[j]) * fr;
-        DR[i] += wr[j] + (wr[j + 1] - wr[j]) * fr;
+    const place = async (sec, bus, wet) => {
+      const [DL, DR] = bus.dry;
+      const len = bus.len;
+      if (wet) {
+        addWet(DL, wet[0], len);
+        addWet(DR, wet[1], len);
+        await maybeYield();
       }
-    }
-    if (sec.eq) {
-      eq(DL, sr, sec.eq);
-      eq(DR, sr, sec.eq);
-    }
-    const a = Math.round((sec.measure[0] - sec.start) * sr);
-    const b = Math.round((sec.measure[1] - sec.start) * sr);
-    // loudness = geometric mean of K-weighted (perceptual) and plain RMS, so eras match on both meters
-    const rk = kRms([DL, DR], sr, a, b);
-    let ss = 0;
-    for (let i = a; i < b; i++) ss += DL[i] * DL[i] + DR[i] * DR[i];
-    const rms = Math.sqrt(rk * Math.sqrt(ss / Math.max(1, 2 * (b - a))));
-    const want = MUSIC_TARGET * dbToGain(sec.loudDb || 0);
-    const g = rms > 1e-6 ? clamp(want / rms, 0.05, 30) : 1;
-    const s0 = Math.round(sec.start * sr);
-    const fadeInEnd = Math.round((sec.t0 - sec.start) * sr);
-    const tailStart = Math.round((sec.t1 - sec.start) * sr);
-    const tailLen = Math.round(XFADE * sr);
-    const iEnd = Math.min(len, total - s0, tailStart + tailLen);
-    for (let i = Math.max(0, -s0); i < iEnd; i++) {
-      let w = g;
-      if (i < fadeInEnd) w *= Math.sin(((i / fadeInEnd) * Math.PI) / 2) ** 2;
-      else if (i > tailStart) w *= Math.cos((((i - tailStart) / tailLen) * Math.PI) / 2) ** 2;
-      L[s0 + i] += DL[i] * w;
-      R[s0 + i] += DR[i] * w;
-    }
-    stats.push({ id: sec.id, rawRms: rms, gain: g, events: sec.events.length });
-  };
+      if (sec.eq) {
+        eq(DL, sr, sec.eq);
+        eq(DR, sr, sec.eq);
+        await maybeYield();
+      }
+      const a = Math.round((sec.measure[0] - sec.start) * sr);
+      const b = Math.round((sec.measure[1] - sec.start) * sr);
+      // loudness = geometric mean of K-weighted (perceptual) and plain RMS, so eras match on both meters
+      const rk = kRms([DL, DR], sr, a, b);
+      const ss = sumSq(DL, a, b) + sumSq(DR, a, b);
+      const rms = Math.sqrt(rk * Math.sqrt(ss / Math.max(1, 2 * (b - a))));
+      await maybeYield();
+      const want = MUSIC_TARGET * dbToGain(sec.loudDb || 0);
+      const g = rms > 1e-6 ? clamp(want / rms, 0.05, 30) : 1;
+      const s0 = Math.round(sec.start * sr);
+      // The pickup beat before t0 plays at its written dynamics (the pickups are composed as
+      // crescendos into the bar line); only a 40 ms click guard opens the window. The tail
+      // after t1 fades out over one beat under the next era's downbeat.
+      const guardN = Math.max(1, Math.min(Math.round(PICKUP_GUARD * sr), Math.round((sec.t0 - sec.start) * sr)));
+      const tailStart = Math.round((sec.t1 - sec.start) * sr);
+      const tailLen = Math.round(XFADE * sr);
+      const iEnd = Math.min(len, total - s0, tailStart + tailLen);
+      addStem(L, DL, s0, Math.max(0, -s0), iEnd, g, guardN, tailStart, tailLen);
+      addStem(R, DR, s0, Math.max(0, -s0), iEnd, g, guardN, tailStart, tailLen);
+      stats.push({ id: sec.id, rawRms: rms, gain: g, events: sec.events.length });
+    };
 
-  const scratch = { L: new Float32Array(0), R: new Float32Array(0) };
-  const inflight = [];
-  for (let k = 0; k < sections.length; k++) {
-    const sec = sections[k];
-    request(k + LOOKAHEAD);
-    c0 = clock();
-    const notes = pool ? await noteReqs[k] : null;
-    phase.waitNotes += clock() - c0;
-    c0 = clock();
-    const bus = await mixSection(sec, sr, maybeYield, scratch, notes);
-    if (!pool) clearVoiceCache(); // bounded memory on the fallback path
-    phase.mix += clock() - c0;
-    inflight.push(renderWetOAC(bus, irs, srHalf).then((wet) => ({ sec, bus, wet })));
-    if (inflight.length >= MAX_INFLIGHT) {
+    const scratch = { L: new Float32Array(0), R: new Float32Array(0) };
+    const inflight = []; // reverb batches, placed strictly in score order
+    let batch = [];
+    const flush = () => {
+      if (!batch.length) return;
+      const items = batch;
+      batch = [];
+      const p = renderWetBatch(
+        items.map((it) => it.bus),
+        irs,
+        srHalf,
+      ).then((wets) => items.map((it, i) => ({ ...it, wet: wets[i] })));
+      p.catch(() => {}); // observed below; avoids a transient "unhandled rejection" report
+      inflight.push(p);
+    };
+    const settleOne = async () => {
+      let t = clock();
+      const done = await inflight.shift();
+      phase.waitWet += clock() - t;
+      t = clock();
+      for (const r of done) {
+        await place(r.sec, r.bus, r.wet);
+        await maybeYield();
+      }
+      phase.place += clock() - t;
+    };
+    for (let k = 0; k < sections.length; k++) {
+      const sec = sections[k];
+      request(k + LOOKAHEAD);
       c0 = clock();
-      const r = await inflight.shift();
-      phase.waitWet += clock() - c0;
-      c0 = clock();
-      place(r.sec, r.bus, r.wet);
-      phase.place += clock() - c0;
+      let bus = mixReqs[k] ? await mixReqs[k] : null;
+      mixReqs[k] = null;
+      phase.waitMix += clock() - c0;
+      if (!bus || bus.len !== Math.ceil((sec.end - sec.start) * sr)) {
+        c0 = clock();
+        bus = await mixSection(sec, sr, scratch, maybeYield);
+        phase.mainMix += clock() - c0;
+        mainMixed++;
+      }
+      batch.push({ sec, bus });
+      if (batch.length >= WET_BATCH) flush();
+      if (inflight.length >= MAX_INFLIGHT) await settleOne();
+      if (opts.onProgress) opts.onProgress((k + 1) / sections.length);
+    }
+    flush();
+    while (inflight.length) await settleOne();
+
+    c0 = clock();
+    let windL;
+    let windR;
+    const windRes = windP ? await windP : null;
+    if (windRes && windRes.L && windRes.L.length === windLen) {
+      windL = windRes.L;
+      windR = windRes.R;
+    } else {
+      const wind = new WindGen(srHalf, windLen, windTab, WIND_SEED);
+      while (!wind.process(1 << 15)) await maybeYield();
+      windL = wind.L;
+      windR = wind.R;
+    }
+    if (pool) {
+      pool.terminate();
+      pool = null;
+    }
+    phase.wind = clock() - c0;
+    c0 = clock();
+
+    // wind level: K-RMS of the bed relative to its mean windiness
+    let meanW = 0;
+    for (let i = 0; i < windTab.length; i++) meanW += windTab[i];
+    meanW /= windTab.length;
+    const windRms = kRms([windL, windR], srHalf) || 1e-6;
+    const wg = (WIND_LEVEL * MUSIC_TARGET * meanW) / windRms;
+    await maybeYield();
+
+    // sum (wind interpolated up from half rate), fade the very start and the last 1.1 s
+    const fadeInN = Math.round(0.4 * sr);
+    const endFadeA = Math.round((TOTAL_DURATION - 1.1) * sr);
+    let prePeak = 0;
+    for (let i0 = 0; i0 < total; i0 += CHUNK) {
+      const i1 = Math.min(total, i0 + CHUNK);
+      for (let i = i0; i < i1; i++) {
+        const j = i >> 1;
+        const fr = (i & 1) * 0.5;
+        const wl = windL[j] + (windL[j + 1] - windL[j]) * fr;
+        const wr = windR[j] + (windR[j + 1] - windR[j]) * fr;
+        let w = 1;
+        if (i < fadeInN) w = i / fadeInN;
+        else if (i > endFadeA) w = Math.cos((((i - endFadeA) / (total - endFadeA)) * Math.PI) / 2) ** 2;
+        const l = (L[i] + wl * wg) * w;
+        const r = (R[i] + wr * wg) * w;
+        L[i] = l;
+        R[i] = r;
+        const al = l < 0 ? -l : l;
+        const ar = r < 0 ? -r : r;
+        if (al > prePeak) prePeak = al;
+        if (ar > prePeak) prePeak = ar;
+      }
       await maybeYield();
     }
-    if (opts.onProgress) opts.onProgress((k + 1) / sections.length);
-  }
-  for (const p of inflight) {
-    c0 = clock();
-    const r = await p;
-    phase.waitWet += clock() - c0;
-    c0 = clock();
-    place(r.sec, r.bus, r.wet);
-    phase.place += clock() - c0;
-  }
+    const limited = await limitInPlace(L, R, sr, CEILING * 0.995, maybeYield);
+    let peak = 0;
+    for (let i0 = 0; i0 < total; i0 += CHUNK) {
+      peak = Math.max(peak, peakOf([L, R], i0, Math.min(total, i0 + CHUNK)));
+      await maybeYield();
+    }
+    const norm = (CEILING * 0.995) / (peak || 1);
+    for (let i0 = 0; i0 < total; i0 += CHUNK) {
+      const i1 = Math.min(total, i0 + CHUNK);
+      for (let i = i0; i < i1; i++) {
+        L[i] *= norm;
+        R[i] *= norm;
+      }
+      await maybeYield();
+    }
 
-  c0 = clock();
-  let windL;
-  let windR;
-  const windRes = windP ? await windP.catch(() => null) : null;
-  if (windRes) {
-    windL = windRes.L;
-    windR = windRes.R;
-  } else {
-    const wind = new WindGen(srHalf, windLen, windinessAt, WIND_SEED);
-    while (!wind.process(1 << 15)) await maybeYield();
-    windL = wind.L;
-    windR = wind.R;
+    const out = new AudioBuffer({ length: total, numberOfChannels: 2, sampleRate: sr });
+    out.copyToChannel(L, 0);
+    out.copyToChannel(R, 1);
+    const tEnd = clock();
+    phase.master = tEnd - c0;
+    lastStats = { ms: tEnd - tStart, workers: workerCount, workerKind, mainThreadSections: mainMixed, phase, sampleRate: sr, prePeak, limitedFraction: limited, normGain: norm, windGain: wg, sections: stats };
+    return out;
+  } finally {
+    if (pool) pool.terminate();
+    maybeYield.close();
   }
-  if (pool) pool.terminate();
-  phase.wind = clock() - c0;
-  c0 = clock();
-
-  // wind level: K-RMS of the bed relative to its mean windiness
-  let meanW = 0;
-  let cnt = 0;
-  for (let t = 0; t < TOTAL_DURATION; t += 0.1) {
-    meanW += windinessAt(t);
-    cnt++;
-  }
-  meanW /= cnt;
-  const windRms = kRms([windL, windR], srHalf) || 1e-6;
-  const wg = (WIND_LEVEL * MUSIC_TARGET * meanW) / windRms;
-  await maybeYield();
-
-  // sum (wind interpolated up from half rate), fade the very start and end
-  const fadeInN = Math.round(0.4 * sr);
-  const endFadeA = Math.round(176.9 * sr);
-  for (let i = 0; i < total; i++) {
-    const j = i >> 1;
-    const fr = (i & 1) * 0.5;
-    const wl = windL[j] + (windL[j + 1] - windL[j]) * fr;
-    const wr = windR[j] + (windR[j + 1] - windR[j]) * fr;
-    let w = 1;
-    if (i < fadeInN) w = i / fadeInN;
-    else if (i > endFadeA) w = Math.cos((((i - endFadeA) / (total - endFadeA)) * Math.PI) / 2) ** 2;
-    L[i] = (L[i] + wl * wg) * w;
-    R[i] = (R[i] + wr * wg) * w;
-  }
-  await maybeYield();
-  const prePeak = peakOf([L, R]);
-  const limited = await limitInPlace(L, R, sr, CEILING * 0.995, maybeYield);
-  const peak = peakOf([L, R]) || 1;
-  const norm = (CEILING * 0.995) / peak;
-  for (let i = 0; i < total; i++) {
-    L[i] *= norm;
-    R[i] *= norm;
-  }
-  maybeYield.close();
-
-  const out = new AudioBuffer({ length: total, numberOfChannels: 2, sampleRate: sr });
-  out.copyToChannel(L, 0);
-  out.copyToChannel(R, 1);
-  const tEnd = clock();
-  phase.master = tEnd - c0;
-  lastStats = { ms: tEnd - tStart, workers: pool ? pool.workers.length : 0, phase, sampleRate: sr, prePeak, limitedFraction: limited, normGain: norm, windGain: wg, sections: stats };
-  return out;
 }
 
 // -----------------------------------------------------------------------------
@@ -645,25 +711,38 @@ export function createAudioEngine() {
   let master = null;
   let source = null;
   let srcGain = null;
-  let token = 0;
+  let token = 0; // identifies the live source (stale onended events are ignored)
+  let startSeq = 0; // identifies the latest start request (stale async continuations bail out)
   let playing = false; // a source is actually running
-  let wantPlay = false; // play requested (possibly before the buffer is ready)
-  let offset = 0; // film time at ctxStart (or the paused position)
+  let wantPlay = false; // play requested (possibly before the buffer is ready / the context runs)
+  let offset = 0; // film time at ctxStart (playing), at wallStart (waiting to start), or the paused position
   let ctxStart = 0;
   let wallStart = 0;
   let volume = 0.9;
   let muted = false;
 
   const nowMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const fire = (cbs) =>
+    cbs.slice().forEach((cb) => {
+      try {
+        cb();
+      } catch (e) {
+        console.warn('[audio] callback failed', e);
+      }
+    });
 
   function ensureCtx() {
     if (ctx) return ctx;
     const AC = typeof window !== 'undefined' ? window.AudioContext || window.webkitAudioContext : null;
     if (!AC) return null;
-    ctx = new AC({ latencyHint: 'interactive' });
+    try {
+      ctx = new AC({ latencyHint: 'interactive' });
+    } catch (e) {
+      ctx = new AC();
+    }
     master = ctx.createGain();
     master.gain.value = muted ? 0 : volume;
-    const limiter = ctx.createDynamicsCompressor(); // gentle safety limiter (volume > 1 or resampling overs)
+    const limiter = ctx.createDynamicsCompressor(); // gentle safety limiter (resampling overs)
     limiter.threshold.value = -2;
     limiter.knee.value = 2;
     limiter.ratio.value = 12;
@@ -679,6 +758,7 @@ export function createAudioEngine() {
 
   const outLatency = () => (ctx ? clamp((ctx.outputLatency || 0) + (ctx.baseLatency || 0), 0, 0.25) : 0);
 
+  /** Film time the listener hears now (output latency compensated while a source runs). */
   function currentTime() {
     if (playing && source && ctx) {
       const el = ctx.currentTime - ctxStart - outLatency();
@@ -722,7 +802,7 @@ export function createAudioEngine() {
     if (pos >= buffer.duration - 0.01) {
       offset = DUR;
       wantPlay = false;
-      endedCbs.forEach((cb) => cb());
+      fire(endedCbs);
       return;
     }
     const s = ctx.createBufferSource();
@@ -741,7 +821,11 @@ export function createAudioEngine() {
       playing = false;
       wantPlay = false;
       offset = DUR;
-      endedCbs.forEach((cb) => cb());
+      // the last samples are still in the output pipeline: report the end once they have been
+      // heard (the player's own clock meanwhile reaches 178 s and draws the final frame)
+      setTimeout(() => {
+        if (my === token && !playing && !wantPlay) fire(endedCbs);
+      }, Math.round(outLatency() * 1000) + 30);
     };
     s.start(when, pos);
     source = s;
@@ -749,6 +833,27 @@ export function createAudioEngine() {
     ctxStart = when;
     offset = pos;
     playing = true;
+  }
+
+  /**
+   * Get the context running, then start the source if playback is still wanted. Every call
+   * supersedes the previous ones, so overlapping play()/init() continuations (e.g. a
+   * play -> pause -> play burst while resume() is pending) start exactly one source.
+   */
+  async function kick() {
+    const my = ++startSeq;
+    const c = ensureCtx();
+    if (!c) return;
+    if (c.state !== 'running') {
+      try {
+        await c.resume();
+      } catch (e) {
+        /* autoplay policy: stays silent, the visuals keep their own clock */
+      }
+    }
+    if (my !== startSeq || !wantPlay || !ready || playing) return;
+    // continue from where the wall clock says we are (resume() may have taken a moment)
+    startSource(currentTime());
   }
 
   function applyGain() {
@@ -763,17 +868,9 @@ export function createAudioEngine() {
           await new Promise((r) => setTimeout(r, 250));
           buffer = await renderSoundtrack(44100);
           ready = true;
-          readyCbs.slice().forEach((cb) => cb());
-          if (wantPlay && ctx) {
-            if (ctx.state !== 'running') {
-              try {
-                await ctx.resume();
-              } catch (e) {
-                /* ignore */
-              }
-            }
-            if (wantPlay) startSource(currentTime());
-          }
+          fire(readyCbs);
+          readyCbs.length = 0;
+          if (wantPlay) await kick();
         })();
       }
       return renderPromise;
@@ -781,38 +878,29 @@ export function createAudioEngine() {
     isReady: () => ready,
     onReady(cb) {
       if (typeof cb !== 'function') return;
-      readyCbs.push(cb);
       if (ready) queueMicrotask(cb);
+      else readyCbs.push(cb);
     },
     onEnded(cb) {
       if (typeof cb === 'function') endedCbs.push(cb);
     },
     async play(t) {
+      stopSource(); // play(t) while playing restarts at t (offset/ctxStart must not mix)
       offset = clamp(Number(t) || 0, 0, DUR);
       wallStart = nowMs();
       wantPlay = true;
-      const c = ensureCtx();
-      if (!c) return;
-      if (c.state !== 'running') {
-        try {
-          await c.resume();
-        } catch (e) {
-          /* autoplay policy: stays silent, the visuals keep their own clock */
-        }
-      }
-      if (!wantPlay || !ready) return;
-      // continue from where the wall clock says we are (resume() may take a moment)
-      startSource(currentTime());
+      await kick();
     },
     pause() {
       const t = currentTime();
       wantPlay = false;
+      startSeq++; // cancel any start still waiting for resume()
       stopSource();
       offset = t;
     },
     seek(t) {
       const pos = clamp(Number(t) || 0, 0, DUR);
-      if (playing && ready) startSource(pos);
+      if (playing) startSource(pos);
       else {
         offset = pos;
         wallStart = nowMs();

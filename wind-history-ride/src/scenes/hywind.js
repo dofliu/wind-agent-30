@@ -163,11 +163,26 @@ function pill(ctx, x, y, main, sub, opts = {}) {
   return { x0, y0, W, H };
 }
 
-/** callout: dot at the anchor, elbow leader, label; prog 0..1 animates it in */
+/** callout: dot at the anchor, elbow leader, label; prog 0..1 animates it in.
+ *  opts.part = 'leader' | 'label' draws only that half (so labels can sit on top of
+ *  every leader when two callouts share the same space). */
 function callout(ctx, a, elbow, end, main, sub, prog, align = 'left', opts = {}) {
   if (prog <= 0) return;
+  const part = opts.part || 'all';
   const p1 = sstep(0, 0.45, prog);
   const p2 = sstep(0.35, 1, prog);
+  if (part !== 'label') drawLeader(ctx, a, elbow, end, p1, prog, opts);
+  if (part !== 'leader' && p2 > 0) {
+    ctx.save();
+    const sc = 0.85 + 0.15 * backOut(p2);
+    ctx.translate(end.x, end.y);
+    ctx.scale(sc, sc);
+    pill(ctx, 0, 0, main, sub, { align, alpha: p2, ...opts });
+    ctx.restore();
+  }
+}
+
+function drawLeader(ctx, a, elbow, end, p1, prog, opts) {
   ctx.save();
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
@@ -199,14 +214,6 @@ function callout(ctx, a, elbow, end, main, sub, prog, align = 'left', opts = {})
   ctx.arc(a.x, a.y, 3.2 * pop, 0, TAU);
   ctx.fill();
   ctx.restore();
-  if (p2 > 0) {
-    ctx.save();
-    const sc = 0.85 + 0.15 * backOut(p2);
-    ctx.translate(end.x, end.y);
-    ctx.scale(sc, sc);
-    pill(ctx, 0, 0, main, sub, { align, alpha: p2, ...opts });
-    ctx.restore();
-  }
 }
 
 function arrowHead(ctx, x, y, dx, dy, s = 6) {
@@ -1139,19 +1146,25 @@ export function render(kit, slot, scene, params) {
     kit.drawRider(ctx, rig, { ...RIDER_STYLE, showPinwheel: false });
 
     const out = thumb ? 1 : 1 - sstep(8.3, 8.9, T);
+    const gags = [];
     const g1 = thumb ? 1 : clamp((T - 4.0) / 0.5, 0, 1) * out;
     if (g1 > 0) {
       const a = { x: rig.head.x + 2, y: rig.head.y - rig.head.r - 2 };
       const lx = clamp(a.x + 46, 150, 830);
       const ly = 440;
-      callout(ctx, a, { x: lx, y: ly + 8 }, { x: lx, y: ly }, '黑面琵鷺', '0 MW · 100% 人力', g1, 'center', { dot: TEAL });
+      gags.push([a, { x: lx, y: ly + 8 }, { x: lx, y: ly }, '黑面琵鷺', '0 MW · 100% 人力', g1]);
     }
     const g2 = thumb ? 0 : clamp((T - 6.0) / 0.5, 0, 1) * out;
     if (g2 > 0) {
       const a = { x: rig.pinHub.x, y: rig.pinHub.y - rig.pinHub.r - 3 };
       const lx = clamp(a.x - 10, 120, 860);
       const ly = 400;
-      callout(ctx, a, { x: lx, y: ly + 8 }, { x: lx, y: ly }, '迷你轉子', '三葉片 · 跟 6 MW 一樣', g2, 'center', { dot: TEAL });
+      gags.push([a, { x: lx, y: ly + 8 }, { x: lx, y: ly }, '迷你轉子', '三葉片 · 跟 6 MW 一樣', g2]);
+    }
+    // all leaders first, then all labels: near the right edge the labels are clamped and
+    // one leader would otherwise cut through the other label
+    for (const part of ['leader', 'label']) {
+      for (const [a, el, en, main, sub, pr] of gags) callout(ctx, a, el, en, main, sub, pr, 'center', { dot: TEAL, part });
     }
   }
   ctx.restore();

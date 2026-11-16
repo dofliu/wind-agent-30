@@ -6,7 +6,7 @@
 // font, and the whole stage ticking at 12 fps (kit.quantizeTime). The buffer is blown up
 // x4 with smoothing off, plus faint CRT scanlines.
 //
-// Machine (historically): ELEVEN Bonus 450 kW turbines (4.95 MW) in TWO rows (6 + 5) in
+// Machine (historically): ELEVEN 450 kW turbines (4.95 MW) in TWO rows (6 + 5) in
 // 2–7 m of shallow water 1.5–3 km off the coast; white tubular towers (hub ≈ 38 m),
 // three-bladed UPWIND rotors (Ø ≈ 35 m), standing on concrete gravity (caisson)
 // foundations with an access platform and ladder; a service boat works the rows.
@@ -830,7 +830,7 @@ function scanlines() {
 // animation helpers
 // =============================================================================
 const W_IDLE = 0.45; // rad/s, idling before the column is "powered up"
-const W_RUN = 3.7; // rad/s (~35 rpm, Bonus 450 kW fixed-speed rotor)
+const W_RUN = 3.7; // rad/s (~35 rpm, a fixed-speed 450 kW rotor of the period)
 const RAMP = 0.7;
 
 function rotorAngle(c, lt, thumb) {

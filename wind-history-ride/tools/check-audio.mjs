@@ -2,11 +2,12 @@
 //
 //   node tools/check-audio.mjs                 render at 44.1 kHz, print per-section RMS / peak
 //   node tools/check-audio.mjs --sr 48000      other sample rate
-//   node tools/check-audio.mjs --determinism   render twice and compare a hash of the samples
+//   node tools/check-audio.mjs --determinism   render twice more (worker pool again + main-thread
+//                                              fallback) and require identical sample hashes
 //   node tools/check-audio.mjs --json out.json also write the measurements as JSON
 //
 // Fails (exit 1) if the duration is wrong, any section is (near) silent, a sample is NaN,
-// or the peak exceeds 0.98.
+// the peak exceeds 0.98, the page logged a console error, or (--determinism) any two renders differ.
 import fs from 'node:fs';
 import { openRenderHost } from './browser.mjs';
 
@@ -104,19 +105,22 @@ try {
       const all = measure(0, buf.duration);
       let hash = null;
       let hash2 = null;
+      let hash3 = null;
+      let stats3 = null;
       if (determinism) {
         hash = hashBuf(buf);
-        const buf2 = await m.renderSoundtrack(sr);
-        hash2 = hashBuf(buf2);
+        hash2 = hashBuf(await m.renderSoundtrack(sr));
+        hash3 = hashBuf(await m.renderSoundtrack(sr, { workers: false }));
+        stats3 = m.getLastRenderStats();
       }
-      return { ms, duration: buf.duration, length: buf.length, sampleRate: buf.sampleRate, channels: buf.numberOfChannels, all, rows, stats, hash, hash2 };
+      return { ms, duration: buf.duration, length: buf.length, sampleRate: buf.sampleRate, channels: buf.numberOfChannels, all, rows, stats, hash, hash2, hash3, stats3 };
     },
     [sr, determinism],
   );
 
   const db = (v) => (v > 0 ? (20 * Math.log10(v)).toFixed(1) : '-inf').padStart(6);
   console.log(`soundtrack: ${res.duration.toFixed(3)} s, ${res.channels} ch @ ${res.sampleRate} Hz (${res.length} samples)`);
-  console.log(`render time: ${(res.ms / 1000).toFixed(2)} s`);
+  console.log(`render time: ${(res.ms / 1000).toFixed(2)} s (${res.stats && res.stats.workers ? `${res.stats.workers} ${res.stats.workerKind} worker(s)` : 'main thread'})`);
   console.log(`overall: peak ${res.all.peak.toFixed(4)} (${db(res.all.peak)} dBFS)  RMS ${res.all.rms.toFixed(4)} (${db(res.all.rms)} dBFS)  clipped samples ${res.all.clip}  NaN ${res.all.nan}`);
   console.log('');
   console.log('section        window (s)       RMS      RMS dB   peak    peak dB   K-loud (LUFS, ungated)');
@@ -147,7 +151,10 @@ try {
     if (res.stats.phase) console.log('phases (ms): ' + Object.entries(res.stats.phase).map(([k, v]) => `${k} ${v.toFixed(0)}`).join(', '));
     console.log(`limiter active on ${(100 * res.stats.limitedFraction).toFixed(2)}% of samples, pre-limit peak ${res.stats.prePeak.toFixed(3)}, final norm gain ${res.stats.normGain.toFixed(3)}`);
   }
-  if (res.hash) console.log(`determinism: ${res.hash} vs ${res.hash2} -> ${res.hash === res.hash2 ? 'identical' : 'DIFFERENT'}`);
+  if (res.hash) {
+    const same = res.hash === res.hash2 && res.hash === res.hash3;
+    console.log(`determinism: workers ${res.hash} / workers again ${res.hash2} / main thread ${res.hash3} (${(res.stats3.ms / 1000).toFixed(2)} s) -> ${same ? 'identical' : 'DIFFERENT'}`);
+  }
   if (Math.abs(res.duration - 178) > 0.01) {
     console.log(`!! duration ${res.duration} != 178`);
     failed = true;
@@ -156,7 +163,11 @@ try {
     console.log(`!! peak ${res.all.peak} > 0.98`);
     failed = true;
   }
-  if (res.hash && res.hash !== res.hash2) failed = true;
+  if (res.hash && (res.hash !== res.hash2 || res.hash !== res.hash3)) failed = true;
+  if (errors.some((e) => e.startsWith('[error]') || e.startsWith('[pageerror]'))) {
+    console.log('!! the page logged console errors');
+    failed = true;
+  }
   if (jsonOut) fs.writeFileSync(jsonOut, JSON.stringify(res, null, 2));
 } finally {
   if (errors.length) {
