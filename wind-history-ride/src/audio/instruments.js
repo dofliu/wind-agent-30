@@ -158,18 +158,18 @@ function piano(sr, f, dur, vel, p, rnd) {
   const out = new Float32Array(len);
   const offN = Math.round(Math.min(dur, 2.2) * sr);
   const B = 0.00012 * Math.pow(f / 130, 1.2);
-  const K = Math.min(16, Math.floor((sr * 0.42) / f));
+  const K = Math.max(3, Math.min(16, Math.floor(6500 / f)));
   const t60base = clamp(9 * Math.pow(110 / f, 0.55), 1.4, 9);
   const hard = 0.35 + 0.65 * vel;
-  const detunes = [0, honky, -honky * 0.8];
-  for (let s = 0; s < 3; s++) {
+  const detunes = p.honky ? [0, honky, -honky * 0.8] : [-honky * 0.5, honky * 0.5];
+  for (let s = 0; s < detunes.length; s++) {
     const fs = f * Math.pow(2, detunes[s] / 1200);
     for (let k = 1; k <= K; k++) {
       const fk = k * fs * Math.sqrt(1 + B * k * k);
       // hammer spectrum: brighter with velocity; strike point near 1/8 suppresses k=8
       const amp = (Math.exp(-(k - 1) * (0.55 - 0.35 * hard) * Math.sqrt(f / 260)) * Math.abs(Math.sin((Math.PI * k) / 8.3))) / k ** 0.35;
       const t60 = t60base / (1 + 0.22 * (k - 1) ** 1.25);
-      addMode(out, sr, fk, amp / 3, t60, rnd() * TAU, offN, 0.18 + 0.05 * s);
+      addMode(out, sr, fk, amp / detunes.length, t60, rnd() * TAU, offN, 0.18 + 0.05 * s);
     }
   }
   // hammer thump
@@ -615,320 +615,325 @@ function sweepTone(out, sr, f0, f1, tau, decay, amp, start = 0) {
   }
 }
 
-function drum(sr, kind, vel, p, rnd) {
-  const len = Math.ceil(sr * (DRUM_LEN[kind] || 0.3));
-  const o = new Float32Array(len);
-  const BP = (f, q) => Biquad.make('bandpass', f, q, 0, sr);
-  const HP = (f) => Biquad.make('highpass', f, 0.7, 0, sr);
-  const LP = (f) => Biquad.make('lowpass', f, 0.7, 0, sr);
-  switch (kind) {
-    case 'kick':
-      sweepTone(o, sr, 170, 48, 0.03, 0.26, 1);
-      noiseBurst(o, sr, rnd, [HP(1500)], 0.35, 0.004);
-      for (let n = 0; n < len; n++) o[n] = softClip(o[n], 1.6);
-      break;
-    case 'kick808':
-      sweepTone(o, sr, 120, 44, 0.05, 0.45, 1);
-      noiseBurst(o, sr, rnd, [HP(2000)], 0.2, 0.003);
-      for (let n = 0; n < len; n++) o[n] = softClip(o[n], 1.3);
-      break;
-    case 'kickSoft':
-      sweepTone(o, sr, 95, 50, 0.04, 0.25, 1);
-      break;
-    case 'bdMarch':
-      sweepTone(o, sr, 80, 56, 0.08, 0.42, 1);
-      noiseBurst(o, sr, rnd, [LP(250)], 0.6, 0.06);
-      break;
-    case 'snareGated':
-      sweepTone(o, sr, 230, 180, 0.02, 0.07, 0.7);
-      noiseBurst(o, sr, rnd, [BP(2600, 0.6)], 0.9, 0.05);
-      // gated "reverb": dense flat tail chopped at ~240 ms
-      noiseBurst(o, sr, rnd, [LP(6500), HP(400)], 0.32, 2.0, 0.01, 0, 0.25);
-      for (let n = Math.round(0.21 * sr); n < len; n++) o[n] *= Math.max(0, 1 - (n / sr - 0.21) / 0.035);
-      break;
-    case 'snareDisco':
-      sweepTone(o, sr, 240, 190, 0.02, 0.06, 0.6);
-      noiseBurst(o, sr, rnd, [HP(1500)], 0.8, 0.09);
-      break;
-    case 'snareMarch':
-      sweepTone(o, sr, 260, 200, 0.015, 0.05, 0.55);
-      noiseBurst(o, sr, rnd, [BP(4200, 0.5)], 0.9, 0.13);
-      break;
-    case 'snareBuzz':
-      noiseBurst(o, sr, rnd, [BP(4000, 0.6)], 0.8, 0.04);
-      sweepTone(o, sr, 230, 200, 0.01, 0.025, 0.3);
-      break;
-    case 'tabor':
-      sweepTone(o, sr, 190, 150, 0.02, 0.12, 0.8);
-      noiseBurst(o, sr, rnd, [BP(2800, 0.9)], 0.55, 0.09);
-      break;
-    case 'clap':
-      for (const d of [0, 0.009, 0.019, 0.03]) noiseBurst(o, sr, rnd, [BP(1300, 1.1)], 0.8, 0.006, 0, Math.round(d * sr), 0.05);
-      noiseBurst(o, sr, rnd, [BP(1200, 0.9)], 0.45, 0.09, 0, Math.round(0.03 * sr));
-      break;
-    case 'palmas':
-      noiseBurst(o, sr, rnd, [BP(1600, 1.2)], 0.9, 0.012);
-      noiseBurst(o, sr, rnd, [BP(1400, 1)], 0.25, 0.05, 0, Math.round(0.006 * sr));
-      break;
-    case 'hatC':
-    case 'hatO': {
-      const base = [205.3, 304.4, 369.6, 522.7, 540, 800].map((x) => x * 1.7);
-      const ph = base.map(() => rnd());
-      const hp = HP(7000);
-      const hp2 = HP(6000);
-      const dk = kind === 'hatC' ? 0.03 : 0.22;
-      for (let n = 0; n < len; n++) {
-        let v = 0;
-        for (let i = 0; i < 6; i++) {
-          ph[i] += base[i] / sr;
-          if (ph[i] >= 1) ph[i] -= 1;
-          v += ph[i] < 0.5 ? 1 : -1;
-        }
-        o[n] = (hp.process(v / 6) + 0.6 * hp2.process(rnd() * 2 - 1)) * Math.exp(-n / sr / dk);
-      }
-      break;
+// Each percussion voice is its own small function (keeps V8's optimiser happy).
+// Signature: (o: Float32Array output, sr, rnd, kind, vel) -> void
+const BPf = (sr, f, q) => Biquad.make('bandpass', f, q, 0, sr);
+const HPf = (sr, f) => Biquad.make('highpass', f, 0.7, 0, sr);
+const LPf = (sr, f) => Biquad.make('lowpass', f, 0.7, 0, sr);
+const DRUMS = {};
+
+DRUMS.kick = function (o, sr, rnd, kind, vel) {
+  const len = o.length;
+  sweepTone(o, sr, 170, 48, 0.03, 0.26, 1);
+  noiseBurst(o, sr, rnd, [HPf(sr, 1500)], 0.35, 0.004);
+  for (let n = 0; n < len; n++) o[n] = softClip(o[n], 1.6);
+};
+DRUMS.kick808 = function (o, sr, rnd, kind, vel) {
+  const len = o.length;
+  sweepTone(o, sr, 120, 44, 0.05, 0.45, 1);
+  noiseBurst(o, sr, rnd, [HPf(sr, 2000)], 0.2, 0.003);
+  for (let n = 0; n < len; n++) o[n] = softClip(o[n], 1.3);
+};
+DRUMS.kickSoft = function (o, sr, rnd, kind, vel) {
+  sweepTone(o, sr, 95, 50, 0.04, 0.25, 1);
+};
+DRUMS.bdMarch = function (o, sr, rnd, kind, vel) {
+  sweepTone(o, sr, 80, 56, 0.08, 0.42, 1);
+  noiseBurst(o, sr, rnd, [LPf(sr, 250)], 0.6, 0.06);
+};
+DRUMS.snareGated = function (o, sr, rnd, kind, vel) {
+  const len = o.length;
+  sweepTone(o, sr, 230, 180, 0.02, 0.07, 0.7);
+  noiseBurst(o, sr, rnd, [BPf(sr, 2600, 0.6)], 0.9, 0.05);
+  // gated "reverb": dense flat tail chopped at ~240 ms
+  noiseBurst(o, sr, rnd, [LPf(sr, 6500), HPf(sr, 400)], 0.32, 2.0, 0.01, 0, 0.25);
+  for (let n = Math.round(0.21 * sr); n < len; n++) o[n] *= Math.max(0, 1 - (n / sr - 0.21) / 0.035);
+};
+DRUMS.snareDisco = function (o, sr, rnd, kind, vel) {
+  sweepTone(o, sr, 240, 190, 0.02, 0.06, 0.6);
+  noiseBurst(o, sr, rnd, [HPf(sr, 1500)], 0.8, 0.09);
+};
+DRUMS.snareMarch = function (o, sr, rnd, kind, vel) {
+  sweepTone(o, sr, 260, 200, 0.015, 0.05, 0.55);
+  noiseBurst(o, sr, rnd, [BPf(sr, 4200, 0.5)], 0.9, 0.13);
+};
+DRUMS.snareBuzz = function (o, sr, rnd, kind, vel) {
+  noiseBurst(o, sr, rnd, [BPf(sr, 4000, 0.6)], 0.8, 0.04);
+  sweepTone(o, sr, 230, 200, 0.01, 0.025, 0.3);
+};
+DRUMS.tabor = function (o, sr, rnd, kind, vel) {
+  sweepTone(o, sr, 190, 150, 0.02, 0.12, 0.8);
+  noiseBurst(o, sr, rnd, [BPf(sr, 2800, 0.9)], 0.55, 0.09);
+};
+DRUMS.clap = function (o, sr, rnd, kind, vel) {
+  for (const d of [0, 0.009, 0.019, 0.03]) noiseBurst(o, sr, rnd, [BPf(sr, 1300, 1.1)], 0.8, 0.006, 0, Math.round(d * sr), 0.05);
+  noiseBurst(o, sr, rnd, [BPf(sr, 1200, 0.9)], 0.45, 0.09, 0, Math.round(0.03 * sr));
+};
+DRUMS.palmas = function (o, sr, rnd, kind, vel) {
+  noiseBurst(o, sr, rnd, [BPf(sr, 1600, 1.2)], 0.9, 0.012);
+  noiseBurst(o, sr, rnd, [BPf(sr, 1400, 1)], 0.25, 0.05, 0, Math.round(0.006 * sr));
+};
+DRUMS.hatC = function (o, sr, rnd, kind, vel) {
+  const len = o.length;
+  const base = [205.3, 304.4, 369.6, 522.7, 540, 800].map((x) => x * 1.7);
+  const ph = base.map(() => rnd());
+  const hp = HPf(sr, 7000);
+  const hp2 = HPf(sr, 6000);
+  const dk = kind === 'hatC' ? 0.03 : 0.22;
+  const ke = Math.exp(-1 / (dk * sr));
+  let e = 1;
+  for (let n = 0; n < len; n++) {
+    let v = 0;
+    for (let i = 0; i < 6; i++) {
+      ph[i] += base[i] / sr;
+      if (ph[i] >= 1) ph[i] -= 1;
+      v += ph[i] < 0.5 ? 1 : -1;
     }
-    case 'shaker':
-      noiseBurst(o, sr, rnd, [BP(6500, 0.9)], 1, 0.035, 0.014);
-      break;
-    case 'tamb':
-      noiseBurst(o, sr, rnd, [HP(5000)], 0.6, 0.08, 0.002);
-      metalPartials(o, sr, rnd, [4600, 5800, 7100, 8600], 0.25, 0.08);
-      break;
-    case 'rim':
-      addMode(o, sr, 1700, 0.8, 0.03);
-      addMode(o, sr, 2900, 0.4, 0.02);
-      noiseBurst(o, sr, rnd, [HP(3000)], 0.4, 0.002);
-      break;
-    case 'frameDum':
-      sweepTone(o, sr, 105, 76, 0.03, 0.32, 1);
-      noiseBurst(o, sr, rnd, [LP(400)], 0.45, 0.02);
-      break;
-    case 'frameTek':
-      addMode(o, sr, 540, 0.5, 0.12);
-      addMode(o, sr, 890, 0.4, 0.09);
-      addMode(o, sr, 1450, 0.25, 0.06);
-      noiseBurst(o, sr, rnd, [BP(2600, 0.8)], 0.7, 0.012);
-      break;
-    case 'tombakTom':
-      sweepTone(o, sr, 140, 102, 0.02, 0.24, 1);
-      addMode(o, sr, 205, 0.3, 0.25);
-      noiseBurst(o, sr, rnd, [LP(700)], 0.3, 0.015);
-      break;
-    case 'tombakBak':
-      addMode(o, sr, 1150, 0.5, 0.06);
-      addMode(o, sr, 1930, 0.35, 0.045);
-      addMode(o, sr, 3300, 0.2, 0.03);
-      noiseBurst(o, sr, rnd, [HP(2000)], 0.6, 0.006);
-      break;
-    case 'castanet':
-      addMode(o, sr, 2350, 0.7, 0.02);
-      addMode(o, sr, 3700, 0.45, 0.015);
-      noiseBurst(o, sr, rnd, [HP(2500)], 0.5, 0.0025);
-      break;
-    case 'wbHi':
-    case 'wbLo': {
-      const f = kind === 'wbHi' ? 1250 : 840;
-      addMode(o, sr, f, 0.8, 0.07);
-      addMode(o, sr, f * 2.47, 0.2, 0.03);
-      noiseBurst(o, sr, rnd, [BP(f * 2, 1)], 0.3, 0.003);
-      break;
-    }
-    case 'muyu':
-      addMode(o, sr, 640, 0.8, 0.12);
-      addMode(o, sr, 1690, 0.25, 0.05);
-      noiseBurst(o, sr, rnd, [BP(1200, 1)], 0.3, 0.004);
-      break;
-    case 'wbScrape': {
-      const bp = BP(3600, 1.3);
-      for (let n = 0; n < len; n++) {
-        const t = n / sr;
-        const env = Math.min(1, t / 0.006) * (t < 0.08 ? 1 : Math.exp(-(t - 0.08) / 0.02));
-        const ridges = Math.pow(Math.abs(Math.sin(Math.PI * 290 * t)), 3);
-        o[n] = bp.process(rnd() * 2 - 1) * env * (0.35 + ridges);
-      }
-      break;
-    }
-    case 'wbTap':
-      metalPartials(o, sr, rnd, [3200, 5100, 7300], 0.06, 0.4);
-      noiseBurst(o, sr, rnd, [HP(4000)], 0.4, 0.003);
-      break;
-    case 'brushSwish': {
-      const bp = BP(3200, 0.45);
-      const hp = HP(1200);
-      for (let n = 0; n < len; n++) {
-        const t = n / len;
-        o[n] = hp.process(bp.process(rnd() * 2 - 1)) * Math.pow(Math.sin(Math.PI * t), 1.6);
-      }
-      break;
-    }
-    case 'brushTap':
-      noiseBurst(o, sr, rnd, [BP(2600, 0.6)], 0.9, 0.045, 0.003);
-      sweepTone(o, sr, 210, 185, 0.02, 0.05, 0.25);
-      break;
-    case 'cymbal':
-      noiseBurst(o, sr, rnd, [HP(4500)], 0.55, 0.55, 0.002);
-      metalPartials(o, sr, rnd, [3100, 3900, 4700, 5600, 6400, 7900, 8800], 1.4, 0.06);
-      break;
-    case 'zill':
-      metalPartials(o, sr, rnd, [2750, 4120, 6290, 7880], 1.4, 0.3);
-      for (let n = 0; n < 40; n++) o[n] *= n / 40;
-      break;
-    case 'pengling':
-      metalPartials(o, sr, rnd, [3520, 5280, 8150], 1.3, 0.3);
-      for (let n = 0; n < 40; n++) o[n] *= n / 40;
-      break;
-    case 'gongBig': {
-      const ratios = [1, 1.52, 2.03, 2.74, 3.41, 4.18, 5.07, 6.3];
-      const f0 = 210;
-      const phs = ratios.map(() => rnd());
-      const amps = ratios.map((_, i) => 1 / (1 + i * 0.45));
-      const ks = ratios.map((_, i) => Math.exp(-(1 + i * 0.35) / (1.4 * sr)));
-      const kg = Math.exp(-1 / (0.35 * sr));
-      let gl = 0.07;
-      const na = Math.round(0.004 * sr);
-      for (let n = 0; n < len; n++) {
-        const glide = 1 + gl; // opera gong: pitch falls
-        gl *= kg;
-        let v = 0;
-        for (let i = 0; i < ratios.length; i++) {
-          phs[i] += (f0 * ratios[i] * glide) / sr;
-          if (phs[i] >= 1) phs[i] -= 1;
-          v += fsin(phs[i]) * amps[i];
-          amps[i] *= ks[i];
-        }
-        o[n] = v * (n < na ? n / na : 1);
-      }
-      noiseBurst(o, sr, rnd, [BP(1200, 0.7)], 0.4, 0.05);
-      break;
-    }
-    case 'gongSmall': {
-      const ratios = [1, 1.47, 2.09, 2.88];
-      const f0 = 640;
-      const phs = ratios.map(() => rnd());
-      const amps = ratios.map((_, i) => 1 / (1 + i * 0.6));
-      const ks = ratios.map((_, i) => Math.exp(-(1 + i * 0.4) / (0.32 * sr)));
-      const kg = Math.exp(-1 / (0.07 * sr));
-      let gl = 0.09;
-      const na = Math.round(0.002 * sr);
-      for (let n = 0; n < len; n++) {
-        const glide = 1 - gl; // small gong: pitch rises
-        gl *= kg;
-        let v = 0;
-        for (let i = 0; i < 4; i++) {
-          phs[i] += (f0 * ratios[i] * glide) / sr;
-          if (phs[i] >= 1) phs[i] -= 1;
-          v += fsin(phs[i]) * amps[i];
-          amps[i] *= ks[i];
-        }
-        o[n] = v * (n < na ? n / na : 1);
-      }
-      break;
-    }
-    case 'bo':
-      noiseBurst(o, sr, rnd, [HP(2500)], 0.6, 0.22, 0.002);
-      metalPartials(o, sr, rnd, [1900, 2600, 3400, 4300, 5200], 0.6, 0.12);
-      break;
-    case 'bangu':
-      sweepTone(o, sr, 700, 520, 0.008, 0.045, 1);
-      noiseBurst(o, sr, rnd, [HP(2500)], 0.4, 0.004);
-      break;
-    case 'ban':
-      addMode(o, sr, 1150, 0.6, 0.04);
-      addMode(o, sr, 2650, 0.4, 0.025);
-      noiseBurst(o, sr, rnd, [BP(1900, 1.5)], 0.7, 0.008);
-      break;
-    case 'chipKick': {
-      let ph = 0;
-      for (let n = 0; n < len; n++) {
-        const t = n / sr;
-        const f = 50 + 110 * Math.exp(-t / 0.03);
-        ph += f / sr;
-        if (ph >= 1) ph -= 1;
-        const step = Math.floor(ph * 32);
-        o[n] = ((step < 16 ? 15 - step : step - 16) / 7.5 - 1) * Math.max(0, 1 - t / 0.15);
-      }
-      break;
-    }
-    case 'chipSnare':
-    case 'chipHat': {
-      // NES-style 15-bit LFSR noise (short mode for the hat -> metallic)
-      let reg = 1;
-      const short = kind === 'chipHat';
-      const hold = Math.max(1, Math.round(sr / (short ? 22000 : 9000)));
-      let v = 1;
-      const dk = short ? 0.035 : 0.12;
-      for (let n = 0; n < len; n++) {
-        if (n % hold === 0) {
-          const bit = (reg ^ (reg >> (short ? 6 : 1))) & 1;
-          reg = (reg >> 1) | (bit << 14);
-          v = reg & 1 ? 1 : -1;
-        }
-        const t = n / sr;
-        o[n] = v * Math.ceil(15 * Math.exp(-t / dk)) / 15;
-      }
-      break;
-    }
-    case 'tomHi':
-    case 'tomMid':
-    case 'tomLo': {
-      const f0 = kind === 'tomHi' ? 190 : kind === 'tomMid' ? 140 : 100;
-      sweepTone(o, sr, f0 * 1.6, f0, 0.05, 0.22, 1);
-      noiseBurst(o, sr, rnd, [BP(f0 * 6, 1)], 0.2, 0.01);
-      break;
-    }
-    case 'riser': {
-      const bp = new SVF();
-      for (let n = 0; n < len; n++) {
-        const t = n / len;
-        if ((n & 31) === 0) bp.set(400 * Math.pow(15, t), 2, sr);
-        o[n] = bp.bp(rnd() * 2 - 1) * t * t;
-      }
-      break;
-    }
-    case 'swell': {
-      const hp = HP(2500);
-      for (let n = 0; n < len; n++) {
-        const t = n / len;
-        o[n] = hp.process(rnd() * 2 - 1) * t * t * t * (t > 0.96 ? (1 - t) / 0.04 : 1);
-      }
-      break;
-    }
-    case 'ratchet':
-      addMode(o, sr, 2300, 0.6, 0.02);
-      addMode(o, sr, 3500, 0.4, 0.012);
-      noiseBurst(o, sr, rnd, [HP(1800)], 0.5, 0.004);
-      break;
-    case 'glitch': {
-      const f = 1800 + 3600 * rnd();
-      const bits = 6;
-      let ph = 0;
-      for (let n = 0; n < len; n++) {
-        const t = n / sr;
-        ph += (f * (1 + 2 * t)) / sr;
-        const v = Math.sin(TAU * ph) > 0 ? 1 : -1;
-        o[n] = (Math.round(v * Math.exp(-t / 0.018) * bits) / bits) * (t < 0.003 ? t / 0.003 : 1);
-      }
-      break;
-    }
-    case 'bikeBell':
-      addMode(o, sr, 2030, 1, 1.3, 0);
-      addMode(o, sr, 2030 * 1.0042, 0.8, 1.2, 1); // beating shell
-      addMode(o, sr, 4710, 0.45, 0.8, 0);
-      addMode(o, sr, 7350, 0.2, 0.45, 0);
-      noiseBurst(o, sr, rnd, [HP(3000)], 0.6, 0.002);
-      for (let n = 0; n < 24; n++) o[n] *= n / 24;
-      break;
-    case 'tick':
-      addMode(o, sr, 3600, 0.7, 0.008);
-      noiseBurst(o, sr, rnd, [HP(4000)], 0.5, 0.0015);
-      break;
-    case 'crackle':
-      noiseBurst(o, sr, rnd, [BP(2500, 0.7)], 1, 0.0012);
-      break;
-    default:
-      break;
+    o[n] = (hp.process(v / 6) + 0.6 * hp2.process(rnd() * 2 - 1)) * e;
+    e *= ke;
   }
+};
+DRUMS.hatO = DRUMS.hatC;
+DRUMS.shaker = function (o, sr, rnd, kind, vel) {
+  noiseBurst(o, sr, rnd, [BPf(sr, 6500, 0.9)], 1, 0.035, 0.014);
+};
+DRUMS.tamb = function (o, sr, rnd, kind, vel) {
+  noiseBurst(o, sr, rnd, [HPf(sr, 5000)], 0.6, 0.08, 0.002);
+  metalPartials(o, sr, rnd, [4600, 5800, 7100, 8600], 0.25, 0.08);
+};
+DRUMS.rim = function (o, sr, rnd, kind, vel) {
+  addMode(o, sr, 1700, 0.8, 0.03);
+  addMode(o, sr, 2900, 0.4, 0.02);
+  noiseBurst(o, sr, rnd, [HPf(sr, 3000)], 0.4, 0.002);
+};
+DRUMS.frameDum = function (o, sr, rnd, kind, vel) {
+  sweepTone(o, sr, 105, 76, 0.03, 0.32, 1);
+  noiseBurst(o, sr, rnd, [LPf(sr, 400)], 0.45, 0.02);
+};
+DRUMS.frameTek = function (o, sr, rnd, kind, vel) {
+  addMode(o, sr, 540, 0.5, 0.12);
+  addMode(o, sr, 890, 0.4, 0.09);
+  addMode(o, sr, 1450, 0.25, 0.06);
+  noiseBurst(o, sr, rnd, [BPf(sr, 2600, 0.8)], 0.7, 0.012);
+};
+DRUMS.tombakTom = function (o, sr, rnd, kind, vel) {
+  sweepTone(o, sr, 140, 102, 0.02, 0.24, 1);
+  addMode(o, sr, 205, 0.3, 0.25);
+  noiseBurst(o, sr, rnd, [LPf(sr, 700)], 0.3, 0.015);
+};
+DRUMS.tombakBak = function (o, sr, rnd, kind, vel) {
+  addMode(o, sr, 1150, 0.5, 0.06);
+  addMode(o, sr, 1930, 0.35, 0.045);
+  addMode(o, sr, 3300, 0.2, 0.03);
+  noiseBurst(o, sr, rnd, [HPf(sr, 2000)], 0.6, 0.006);
+};
+DRUMS.castanet = function (o, sr, rnd, kind, vel) {
+  addMode(o, sr, 2350, 0.7, 0.02);
+  addMode(o, sr, 3700, 0.45, 0.015);
+  noiseBurst(o, sr, rnd, [HPf(sr, 2500)], 0.5, 0.0025);
+};
+DRUMS.wbHi = function (o, sr, rnd, kind, vel) {
+  const f = kind === 'wbHi' ? 1250 : 840;
+  addMode(o, sr, f, 0.8, 0.07);
+  addMode(o, sr, f * 2.47, 0.2, 0.03);
+  noiseBurst(o, sr, rnd, [BPf(sr, f * 2, 1)], 0.3, 0.003);
+};
+DRUMS.wbLo = DRUMS.wbHi;
+DRUMS.muyu = function (o, sr, rnd, kind, vel) {
+  addMode(o, sr, 640, 0.8, 0.12);
+  addMode(o, sr, 1690, 0.25, 0.05);
+  noiseBurst(o, sr, rnd, [BPf(sr, 1200, 1)], 0.3, 0.004);
+};
+DRUMS.wbScrape = function (o, sr, rnd, kind, vel) {
+  const len = o.length;
+  const bp = BPf(sr, 3600, 1.3);
+  for (let n = 0; n < len; n++) {
+    const t = n / sr;
+    const env = Math.min(1, t / 0.006) * (t < 0.08 ? 1 : Math.exp(-(t - 0.08) / 0.02));
+    const ridges = Math.pow(Math.abs(Math.sin(Math.PI * 290 * t)), 3);
+    o[n] = bp.process(rnd() * 2 - 1) * env * (0.35 + ridges);
+  }
+};
+DRUMS.wbTap = function (o, sr, rnd, kind, vel) {
+  metalPartials(o, sr, rnd, [3200, 5100, 7300], 0.06, 0.4);
+  noiseBurst(o, sr, rnd, [HPf(sr, 4000)], 0.4, 0.003);
+};
+DRUMS.brushSwish = function (o, sr, rnd, kind, vel) {
+  const len = o.length;
+  const bp = BPf(sr, 3200, 0.45);
+  const hp = HPf(sr, 1200);
+  for (let n = 0; n < len; n++) {
+    const t = n / len;
+    o[n] = hp.process(bp.process(rnd() * 2 - 1)) * Math.pow(Math.sin(Math.PI * t), 1.6);
+  }
+};
+DRUMS.brushTap = function (o, sr, rnd, kind, vel) {
+  noiseBurst(o, sr, rnd, [BPf(sr, 2600, 0.6)], 0.9, 0.045, 0.003);
+  sweepTone(o, sr, 210, 185, 0.02, 0.05, 0.25);
+};
+DRUMS.cymbal = function (o, sr, rnd, kind, vel) {
+  noiseBurst(o, sr, rnd, [HPf(sr, 4500)], 0.55, 0.55, 0.002);
+  metalPartials(o, sr, rnd, [3100, 3900, 4700, 5600, 6400, 7900, 8800], 1.4, 0.06);
+};
+DRUMS.zill = function (o, sr, rnd, kind, vel) {
+  metalPartials(o, sr, rnd, [2750, 4120, 6290, 7880], 1.4, 0.3);
+  for (let n = 0; n < 40; n++) o[n] *= n / 40;
+};
+DRUMS.pengling = function (o, sr, rnd, kind, vel) {
+  metalPartials(o, sr, rnd, [3520, 5280, 8150], 1.3, 0.3);
+  for (let n = 0; n < 40; n++) o[n] *= n / 40;
+};
+DRUMS.gongBig = function (o, sr, rnd, kind, vel) {
+  const len = o.length;
+  const ratios = [1, 1.52, 2.03, 2.74, 3.41, 4.18, 5.07, 6.3];
+  const f0 = 210;
+  const phs = ratios.map(() => rnd());
+  const amps = ratios.map((_, i) => 1 / (1 + i * 0.45));
+  const ks = ratios.map((_, i) => Math.exp(-(1 + i * 0.35) / (1.4 * sr)));
+  const kg = Math.exp(-1 / (0.35 * sr));
+  let gl = 0.07;
+  const na = Math.round(0.004 * sr);
+  for (let n = 0; n < len; n++) {
+    const glide = 1 + gl; // opera gong: pitch falls
+    gl *= kg;
+    let v = 0;
+    for (let i = 0; i < ratios.length; i++) {
+      phs[i] += (f0 * ratios[i] * glide) / sr;
+      if (phs[i] >= 1) phs[i] -= 1;
+      v += fsin(phs[i]) * amps[i];
+      amps[i] *= ks[i];
+    }
+    o[n] = v * (n < na ? n / na : 1);
+  }
+  noiseBurst(o, sr, rnd, [BPf(sr, 1200, 0.7)], 0.4, 0.05);
+};
+DRUMS.gongSmall = function (o, sr, rnd, kind, vel) {
+  const len = o.length;
+  const ratios = [1, 1.47, 2.09, 2.88];
+  const f0 = 640;
+  const phs = ratios.map(() => rnd());
+  const amps = ratios.map((_, i) => 1 / (1 + i * 0.6));
+  const ks = ratios.map((_, i) => Math.exp(-(1 + i * 0.4) / (0.32 * sr)));
+  const kg = Math.exp(-1 / (0.07 * sr));
+  let gl = 0.09;
+  const na = Math.round(0.002 * sr);
+  for (let n = 0; n < len; n++) {
+    const glide = 1 - gl; // small gong: pitch rises
+    gl *= kg;
+    let v = 0;
+    for (let i = 0; i < 4; i++) {
+      phs[i] += (f0 * ratios[i] * glide) / sr;
+      if (phs[i] >= 1) phs[i] -= 1;
+      v += fsin(phs[i]) * amps[i];
+      amps[i] *= ks[i];
+    }
+    o[n] = v * (n < na ? n / na : 1);
+  }
+};
+DRUMS.bo = function (o, sr, rnd, kind, vel) {
+  noiseBurst(o, sr, rnd, [HPf(sr, 2500)], 0.6, 0.22, 0.002);
+  metalPartials(o, sr, rnd, [1900, 2600, 3400, 4300, 5200], 0.6, 0.12);
+};
+DRUMS.bangu = function (o, sr, rnd, kind, vel) {
+  sweepTone(o, sr, 700, 520, 0.008, 0.045, 1);
+  noiseBurst(o, sr, rnd, [HPf(sr, 2500)], 0.4, 0.004);
+};
+DRUMS.ban = function (o, sr, rnd, kind, vel) {
+  addMode(o, sr, 1150, 0.6, 0.04);
+  addMode(o, sr, 2650, 0.4, 0.025);
+  noiseBurst(o, sr, rnd, [BPf(sr, 1900, 1.5)], 0.7, 0.008);
+};
+DRUMS.chipKick = function (o, sr, rnd, kind, vel) {
+  const len = o.length;
+  let ph = 0;
+  for (let n = 0; n < len; n++) {
+    const t = n / sr;
+    const f = 50 + 110 * Math.exp(-t / 0.03);
+    ph += f / sr;
+    if (ph >= 1) ph -= 1;
+    const step = Math.floor(ph * 32);
+    o[n] = ((step < 16 ? 15 - step : step - 16) / 7.5 - 1) * Math.max(0, 1 - t / 0.15);
+  }
+};
+DRUMS.chipSnare = function (o, sr, rnd, kind, vel) {
+  const len = o.length;
+  // NES-style 15-bit LFSR noise (short mode for the hat -> metallic)
+  let reg = 1;
+  const short = kind === 'chipHat';
+  const hold = Math.max(1, Math.round(sr / (short ? 22000 : 9000)));
+  let v = 1;
+  const dk = short ? 0.035 : 0.12;
+  for (let n = 0; n < len; n++) {
+    if (n % hold === 0) {
+      const bit = (reg ^ (reg >> (short ? 6 : 1))) & 1;
+      reg = (reg >> 1) | (bit << 14);
+      v = reg & 1 ? 1 : -1;
+    }
+    const t = n / sr;
+    o[n] = v * Math.ceil(15 * Math.exp(-t / dk)) / 15;
+  }
+};
+DRUMS.chipHat = DRUMS.chipSnare;
+DRUMS.tomHi = function (o, sr, rnd, kind, vel) {
+  const f0 = kind === 'tomHi' ? 190 : kind === 'tomMid' ? 140 : 100;
+  sweepTone(o, sr, f0 * 1.6, f0, 0.05, 0.22, 1);
+  noiseBurst(o, sr, rnd, [BPf(sr, f0 * 6, 1)], 0.2, 0.01);
+};
+DRUMS.tomMid = DRUMS.tomHi;
+DRUMS.tomLo = DRUMS.tomHi;
+DRUMS.riser = function (o, sr, rnd, kind, vel) {
+  const len = o.length;
+  const bp = new SVF();
+  for (let n = 0; n < len; n++) {
+    const t = n / len;
+    if ((n & 31) === 0) bp.set(400 * Math.pow(15, t), 2, sr);
+    o[n] = bp.bp(rnd() * 2 - 1) * t * t;
+  }
+};
+DRUMS.swell = function (o, sr, rnd, kind, vel) {
+  const len = o.length;
+  const hp = HPf(sr, 2500);
+  for (let n = 0; n < len; n++) {
+    const t = n / len;
+    o[n] = hp.process(rnd() * 2 - 1) * t * t * t * (t > 0.96 ? (1 - t) / 0.04 : 1);
+  }
+};
+DRUMS.ratchet = function (o, sr, rnd, kind, vel) {
+  addMode(o, sr, 2300, 0.6, 0.02);
+  addMode(o, sr, 3500, 0.4, 0.012);
+  noiseBurst(o, sr, rnd, [HPf(sr, 1800)], 0.5, 0.004);
+};
+DRUMS.glitch = function (o, sr, rnd, kind, vel) {
+  const len = o.length;
+  const f = 1800 + 3600 * rnd();
+  const bits = 6;
+  let ph = 0;
+  for (let n = 0; n < len; n++) {
+    const t = n / sr;
+    ph += (f * (1 + 2 * t)) / sr;
+    const v = Math.sin(TAU * ph) > 0 ? 1 : -1;
+    o[n] = (Math.round(v * Math.exp(-t / 0.018) * bits) / bits) * (t < 0.003 ? t / 0.003 : 1);
+  }
+};
+DRUMS.bikeBell = function (o, sr, rnd, kind, vel) {
+  addMode(o, sr, 2030, 1, 1.3, 0);
+  addMode(o, sr, 2030 * 1.0042, 0.8, 1.2, 1); // beating shell
+  addMode(o, sr, 4710, 0.45, 0.8, 0);
+  addMode(o, sr, 7350, 0.2, 0.45, 0);
+  noiseBurst(o, sr, rnd, [HPf(sr, 3000)], 0.6, 0.002);
+  for (let n = 0; n < 24; n++) o[n] *= n / 24;
+};
+DRUMS.tick = function (o, sr, rnd, kind, vel) {
+  addMode(o, sr, 3600, 0.7, 0.008);
+  noiseBurst(o, sr, rnd, [HPf(sr, 4000)], 0.5, 0.0015);
+};
+DRUMS.crackle = function (o, sr, rnd, kind, vel) {
+  noiseBurst(o, sr, rnd, [BPf(sr, 2500, 0.7)], 1, 0.0012);
+};
+
+function drum(sr, kind, vel, p, rnd) {
+  const o = new Float32Array(Math.ceil(sr * (DRUM_LEN[kind] || 0.3)));
+  if (DRUMS[kind]) DRUMS[kind](o, sr, rnd, kind, vel);
   return fadeEnds(dcBlock(o, sr, 20), sr, 0, 6);
 }
 
@@ -1041,28 +1046,38 @@ function calibration(name, sr) {
   return c;
 }
 
-/**
- * Rendered, calibrated mono note (cached). Velocity is quantised for timbre; the caller
- * applies the exact velocity as gain.
- */
-export function renderVoice(name, sr, midi, dur, vel, p = {}) {
+/** Canonical cache key of a note (velocity is quantised for timbre; exact velocity is applied as gain). */
+export function voiceKey(name, midi, dur, vel, p = {}) {
   const def = VOICES[name];
   if (!def) throw new Error(`unknown voice ${name}`);
+  const vq = Math.round(clamp(vel, 0.05, 1) * 10) / 10;
+  const dq = def.drum ? 0 : Math.round(dur * 1000) / 1000;
+  const mq = def.drum ? 0 : Math.round(midi * 100) / 100;
+  const pk = p && Object.keys(p).length ? JSON.stringify(p) : '';
+  return `${name}|${mq}|${dq}|${vq}|${pk}`;
+}
+
+/** Render a note from its key (pure: same key + sample rate -> identical samples). */
+export function renderKey(key, sr, p = {}) {
+  const [name, mq, dq, vq] = key.split('|');
+  const def = VOICES[name];
+  const rnd = mulberry32(hashStr(key));
+  const buf = def.fn(sr, mtof(Number(mq)), Number(dq) || 0.1, Number(vq), p || {}, rnd);
+  const c = calibration(name, sr);
+  for (let i = 0; i < buf.length; i++) buf[i] *= c;
+  return buf;
+}
+
+/** Rendered, calibrated mono note (cached). */
+export function renderVoice(name, sr, midi, dur, vel, p = {}) {
   if (cacheSr !== sr) {
     noteCache.clear();
     cacheSr = sr;
   }
-  const vq = Math.round(clamp(vel, 0.05, 1) * 10) / 10;
-  const dq = Math.round(dur * 1000) / 1000;
-  const mq = def.drum ? 0 : Math.round(midi * 100) / 100;
-  const pk = p && Object.keys(p).length ? JSON.stringify(p) : '';
-  const key = `${name}|${mq}|${def.drum ? 0 : dq}|${vq}|${pk}|${p.v || 0}`;
+  const key = voiceKey(name, midi, dur, vel, p);
   let buf = noteCache.get(key);
   if (!buf) {
-    const rnd = mulberry32(hashStr(key));
-    buf = def.fn(sr, mtof(mq), dq, vq, p || {}, rnd);
-    const c = calibration(name, sr);
-    for (let i = 0; i < buf.length; i++) buf[i] *= c;
+    buf = renderKey(key, sr, p);
     noteCache.set(key, buf);
   }
   return buf;

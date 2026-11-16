@@ -40,7 +40,16 @@ export class WindGen {
   constructor(sr, length, windiness, seed = 1234) {
     this.sr = sr;
     this.length = length;
-    this.windiness = windiness;
+    // windiness sampled on a 10 ms grid (the curve is slow; this keeps the inner loop lean)
+    const dur = length / sr;
+    const nW = Math.ceil(dur * 100) + 2;
+    const wTab = new Float32Array(nW);
+    for (let i = 0; i < nW; i++) wTab[i] = windiness(i / 100);
+    this.windiness = (t) => {
+      const x = Math.max(0, t * 100);
+      const i = Math.min(nW - 2, x | 0);
+      return wTab[i] + (wTab[i + 1] - wTab[i]) * (x - i);
+    };
     this.L = new Float32Array(length);
     this.R = new Float32Array(length);
     this.pos = 0;
@@ -48,7 +57,7 @@ export class WindGen {
     this.aHiss = onePole(1800, sr);
     this.aHp = onePole(55, sr);
     this.ch = [0, 1].map((c) => ({
-      rnd: mulberry32(seed + 101 * c),
+      seed: (Math.floor(mulberry32(seed + 101 * c)() * 4294967295) >>> 0) || 1,
       b0: 0,
       b1: 0,
       b2: 0,
@@ -82,8 +91,8 @@ export class WindGen {
     for (let ci = 0; ci < 2; ci++) {
       const c = this.ch[ci];
       const out = ci === 0 ? this.L : this.R;
-      let { b0, b1, b2, zl, zh, zd, a0, a1, a2 } = c;
-      const { rnd, body, whistle } = c;
+      let { b0, b1, b2, zl, zh, zd, a0, a1, a2, seed } = c;
+      const { body, whistle } = c;
       let t0 = 0;
       let t1 = 0;
       let t2 = 0;
@@ -107,7 +116,11 @@ export class WindGen {
         a0 += (t0 - a0) * 0.004;
         a1 += (t1 - a1) * 0.004;
         a2 += (t2 - a2) * 0.004;
-        const white = rnd() * 2 - 1;
+        // xorshift32 white noise (inline, deterministic)
+        seed ^= seed << 13;
+        seed ^= seed >>> 17;
+        seed ^= seed << 5;
+        const white = (seed >>> 0) * 4.656612873e-10 - 1;
         b0 = 0.99765 * b0 + white * 0.099046;
         b1 = 0.963 * b1 + white * 0.2965164;
         b2 = 0.57 * b2 + white * 1.0526913;
@@ -119,7 +132,7 @@ export class WindGen {
         zd += aHp * (v - zd);
         out[i] = v - zd;
       }
-      Object.assign(c, { b0, b1, b2, zl, zh, zd, a0, a1, a2 });
+      Object.assign(c, { b0, b1, b2, zl, zh, zd, a0, a1, a2, seed });
     }
     this.pos = end;
     return this.pos >= this.length;

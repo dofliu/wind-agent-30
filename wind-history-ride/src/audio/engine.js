@@ -7,32 +7,37 @@
 // Extra exports for tools:
 //   renderSoundtrack(sampleRate = 48000) -> Promise<AudioBuffer>   (stereo, 178 s, deterministic)
 //   encodeWav16(audioBuffer) -> Uint8Array                          (16-bit PCM WAV)
-//   getLastRenderStats() -> { ms, sections: [...] }
+//   getLastRenderStats() -> { ms, phase, sections: [...] }
 //
-// Pipeline (all deterministic, seeded PRNGs only):
-//   1. score.js builds 22 sections (intro, 20 eras, outro) of note events.
-//   2. Each section's notes are synthesised in JS (instruments.js; cached per pitch/length)
-//      and mixed into dry + hall-send + room-send stereo stems, with per-track FX
-//      (tremolo, ping-pong delay, side-chain ducking). The main thread yields every ~20 ms.
-//   3. Each section is rendered through its own OfflineAudioContext (procedural
-//      convolution reverbs + optional era EQ such as the 1940s newsreel band-limit);
-//      up to 4 render in parallel on the audio threads.
-//   4. Stems are loudness-matched (K-weighted RMS per era) and overlap-added: pickups fade
-//      in over the beat before each bar line, tails fade out over the beat after it.
-//   5. A continuous stereo wind bed (foley.js) is added, then a look-ahead peak limiter
-//      and a final peak normalisation to -1 dBFS.
+// Render pipeline (deterministic: seeded PRNGs only, no Math.random, no timers in the DSP):
+//   1. score.js turns the leitmotif into 22 sections (intro, 20 eras, outro) of note events.
+//   2. Notes are synthesised as precomputed buffers (instruments.js: Karplus–Strong strings,
+//      modal bars/bells, FM, subtractive synths, noise percussion) — in a small pool of
+//      module Web Workers when available, otherwise on the main thread in ~20 ms slices.
+//   3. Each section is mixed into a dry stem plus hall/room reverb sends with per-track
+//      FX (vibraphone tremolo, ping-pong delay, side-chain ducking).
+//   4. Each section's reverb sends are rendered by its own OfflineAudioContext through
+//      two ConvolverNodes with procedurally generated impulse responses (at half rate:
+//      reverb tails carry little above 10 kHz, and it quarters the convolution cost).
+//   5. Stems are loudness-matched per era (K-weighted RMS) and overlap-added: each era's
+//      pickup fades in over the beat before its bar line, its tail fades out over the beat
+//      after the next one — a one-beat crossfade aligned to the bar line.
+//   6. The stereo wind bed (foley.js) is added, then a 5 ms look-ahead peak limiter and a
+//      final normalisation to a -1 dBFS sample peak.
 
 import { TOTAL_DURATION } from '../beat/timeline.js';
 import { buildScore, windinessAt } from './score.js';
-import { renderVoice, clearVoiceCache } from './instruments.js';
+import { renderVoice, voiceKey, clearVoiceCache } from './instruments.js';
 import { WindGen } from './foley.js';
-import { mulberry32, SVF, kRms, peakOf, dbToGain, clamp } from './dsp.js';
+import { mulberry32, eq, kRms, peakOf, dbToGain, clamp } from './dsp.js';
 
 const MUSIC_TARGET = 0.1; // K-weighted RMS each era stem is matched to (≈ -20 dB)
 const WIND_LEVEL = 0.36; // wind K-RMS relative to MUSIC_TARGET at windiness 1
-const CEILING = dbToGain(-1); // final true sample peak: -1 dBFS
+const CEILING = dbToGain(-1); // final sample peak: -1 dBFS
 const XFADE = 0.5; // one beat at 120 BPM
-const MAX_INFLIGHT = 2;
+const MAX_INFLIGHT = 3; // concurrent reverb renders
+const LOOKAHEAD = 4; // sections whose notes are queued ahead in the worker pool
+const WIND_SEED = 4242;
 
 let lastStats = null;
 export function getLastRenderStats() {
@@ -112,6 +117,110 @@ function makeIR(sr, { seconds, rt60, predelay, bright, dark, early, seed }) {
 }
 
 // -----------------------------------------------------------------------------
+// Worker pool for note synthesis (falls back to the main thread when unavailable)
+// -----------------------------------------------------------------------------
+class SynthPool {
+  constructor(workers) {
+    this.workers = workers;
+    this.load = workers.map(() => 0);
+    this.pending = new Map();
+    this.nextId = 1;
+    workers.forEach((w) => {
+      w.onmessage = (e) => {
+        const d = e.data;
+        const p = this.pending.get(d.id);
+        if (!p) return;
+        this.pending.delete(d.id);
+        if (d.type === 'error') p.reject(new Error(d.message));
+        else p.resolve(d);
+      };
+      w.onerror = (e) => {
+        for (const p of this.pending.values()) p.reject(new Error((e && e.message) || 'worker error'));
+        this.pending.clear();
+      };
+    });
+  }
+
+  static async create(n, timeoutMs = 5000) {
+    if (typeof Worker === 'undefined' || n < 1) return null;
+    let url;
+    try {
+      url = new URL('./synth-worker.js', import.meta.url);
+    } catch (e) {
+      return null;
+    }
+    const workers = [];
+    try {
+      for (let i = 0; i < n; i++) workers.push(new Worker(url, { type: 'module' }));
+    } catch (e) {
+      workers.forEach((w) => w.terminate());
+      return null;
+    }
+    const ok = await Promise.all(
+      workers.map(
+        (w) =>
+          new Promise((res) => {
+            const to = setTimeout(() => res(false), timeoutMs);
+            w.onmessage = (e) => {
+              if (e.data && e.data.type === 'pong') {
+                clearTimeout(to);
+                res(true);
+              }
+            };
+            w.onerror = () => {
+              clearTimeout(to);
+              res(false);
+            };
+            w.postMessage({ type: 'ping', id: 0 });
+          }),
+      ),
+    );
+    if (!ok.every(Boolean)) {
+      workers.forEach((w) => w.terminate());
+      return null;
+    }
+    return new SynthPool(workers);
+  }
+
+  post(i, msg, transfer = []) {
+    const id = this.nextId++;
+    return new Promise((resolve, reject) => {
+      this.pending.set(id, { resolve, reject });
+      this.workers[i].postMessage({ ...msg, id }, transfer);
+    });
+  }
+
+  leastLoaded() {
+    let b = 0;
+    for (let i = 1; i < this.load.length; i++) if (this.load[i] < this.load[b]) b = i;
+    return b;
+  }
+
+  terminate() {
+    this.workers.forEach((w) => w.terminate());
+  }
+}
+
+/** Queue all distinct notes of a section on the pool; resolves to Map(key -> Float32Array). */
+function requestSectionNotes(pool, sec, sr) {
+  const jobs = new Map();
+  for (const ev of sec.events) {
+    if (!jobs.has(ev.key)) jobs.set(ev.key, { key: ev.key, p: ev.p || {}, cost: 0.3 + Math.min(ev.dur, 3) });
+  }
+  const per = pool.workers.map(() => []);
+  for (const j of [...jobs.values()].sort((a, b) => b.cost - a.cost)) {
+    const w = pool.leastLoaded();
+    per[w].push(j);
+    pool.load[w] += j.cost;
+  }
+  return Promise.all(per.map((js, i) => (js.length ? pool.post(i, { type: 'notes', sr, jobs: js.map(({ key, p }) => ({ key, p })) }) : null))).then((results) => {
+    const map = new Map();
+    for (const r of results) if (r) r.keys.forEach((k, i) => map.set(k, r.bufs[i]));
+    return map;
+  });
+}
+
+// -----------------------------------------------------------------------------
 // Section mixing (JS)
 // -----------------------------------------------------------------------------
 function applyTrackFx(L, R, fx, sr, startT) {
@@ -166,32 +275,32 @@ function applyTrackFx(L, R, fx, sr, startT) {
 }
 
 /**
- * Synthesise one section's notes and mix them into stereo AudioBuffers: dry, hall send,
- * room send. Track buffers are scratch arrays reused across tracks and sections.
+ * Mix one section: a full-rate dry stem plus half-rate hall/room sends (decimated with a
+ * [1/4 1/2 1/4] kernel). Track buffers are scratch arrays reused across tracks/sections.
  */
-async function mixSection(sec, sr, maybeYield, scratch) {
+async function mixSection(sec, sr, maybeYield, scratch, notes) {
   const len = Math.ceil((sec.end - sec.start) * sr);
-  const mk = () => new AudioBuffer({ length: len, numberOfChannels: 2, sampleRate: sr });
-  const bus = { len, dry: mk(), hall: null, room: null };
+  const half = (len >> 1) + 2;
+  const bus = { len, half, dry: [new Float32Array(len), new Float32Array(len)], hall: null, room: null };
   const byTrack = new Map();
   for (const ev of sec.events) {
     if (!byTrack.has(ev.tr)) byTrack.set(ev.tr, []);
     byTrack.get(ev.tr).push(ev);
   }
-  if (scratch.L.length < len) {
-    scratch.L = new Float32Array(len);
-    scratch.R = new Float32Array(len);
+  if (scratch.L.length < len + 2) {
+    scratch.L = new Float32Array(len + 2);
+    scratch.R = new Float32Array(len + 2);
   }
   const tL = scratch.L;
   const tR = scratch.R;
   for (const [name, evs] of byTrack) {
     const cfg = sec.tracks[name] || { gain: 0.5, pan: 0, hall: 0.2, room: 0 };
-    tL.fill(0, 0, len);
-    tR.fill(0, 0, len);
+    tL.fill(0);
+    tR.fill(0);
     let lo = len;
     let hi = 0;
     for (const ev of evs) {
-      const buf = renderVoice(ev.voice, sr, ev.midi, ev.dur, ev.vel, ev.p || {});
+      const buf = (notes && notes.get(ev.key)) || renderVoice(ev.voice, sr, ev.midi, ev.dur, ev.vel, ev.p || {});
       const off = Math.round((ev.t - sec.start) * sr);
       const pan = clamp(cfg.pan + (ev.pan || 0), -1, 1);
       const th = ((pan + 1) * Math.PI) / 4;
@@ -207,23 +316,30 @@ async function mixSection(sec, sr, maybeYield, scratch) {
         tL[off + i] += v * gl;
         tR[off + i] += v * gr;
       }
-      await maybeYield();
+      if (!notes) await maybeYield();
     }
     if (hi <= lo) continue;
     if (cfg.fx) {
-      // effects may extend the track (delay tails): process to the end of the section
-      hi = len;
+      hi = len; // delay tails run to the end of the section
       applyTrackFx(tL.subarray(0, len), tR.subarray(0, len), cfg.fx, sr, sec.start);
     }
-    const sends = [['dry', cfg.gain], ['hall', cfg.gain * (cfg.hall || 0)], ['room', cfg.gain * (cfg.room || 0)]];
-    for (const [b, g] of sends) {
-      if (g <= 0) continue;
-      if (!bus[b]) bus[b] = mk();
-      const BL = bus[b].getChannelData(0);
-      const BR = bus[b].getChannelData(1);
-      for (let i = lo; i < hi; i++) {
-        BL[i] += tL[i] * g;
-        BR[i] += tR[i] * g;
+    const g = cfg.gain;
+    const [DL, DR] = bus.dry;
+    for (let i = lo; i < hi; i++) {
+      DL[i] += tL[i] * g;
+      DR[i] += tR[i] * g;
+    }
+    for (const key of ['hall', 'room']) {
+      const gs = g * (cfg[key] || 0);
+      if (gs <= 0) continue;
+      if (!bus[key]) bus[key] = [new Float32Array(half), new Float32Array(half)];
+      const [SL, SR] = bus[key];
+      const j0 = Math.max(1, lo >> 1);
+      const j1 = Math.min(half, (hi >> 1) + 1, (len - 1) >> 1);
+      for (let j = j0; j < j1; j++) {
+        const i = j << 1;
+        SL[j] += (0.25 * tL[i - 1] + 0.5 * tL[i] + 0.25 * tL[i + 1]) * gs;
+        SR[j] += (0.25 * tR[i - 1] + 0.5 * tR[i] + 0.25 * tR[i + 1]) * gs;
       }
     }
     await maybeYield();
@@ -231,37 +347,22 @@ async function mixSection(sec, sr, maybeYield, scratch) {
   return bus;
 }
 
-function renderSectionOAC(sec, bus, irs, sr) {
-  const ctx = new OfflineAudioContext({ numberOfChannels: 2, length: bus.len, sampleRate: sr });
-  const sum = ctx.createGain();
-  let tail = sum;
-  for (const [type, fc, q, db] of sec.eq || []) {
-    const f = ctx.createBiquadFilter();
-    f.type = type;
-    f.frequency.value = fc;
-    // Web Audio lowpass/highpass Q is a resonance in dB
-    f.Q.value = type === 'lowpass' || type === 'highpass' ? 20 * Math.log10(q) : q;
-    f.gain.value = db || 0;
-    tail.connect(f);
-    tail = f;
-  }
-  tail.connect(ctx.destination);
-  const src = (b) => {
-    const s = ctx.createBufferSource();
-    s.buffer = b;
-    return s;
-  };
-  const dry = src(bus.dry);
-  dry.connect(sum);
-  dry.start(0);
+/** Render a section's reverb returns through its own OfflineAudioContext (half rate). */
+function renderWetOAC(bus, irs, srHalf) {
+  if (!bus.hall && !bus.room) return Promise.resolve(null);
+  const ctx = new OfflineAudioContext({ numberOfChannels: 2, length: bus.half, sampleRate: srHalf });
   for (const key of ['hall', 'room']) {
     if (!bus[key]) continue;
-    const s = src(bus[key]);
+    const b = ctx.createBuffer(2, bus.half, srHalf);
+    b.copyToChannel(bus[key][0], 0);
+    b.copyToChannel(bus[key][1], 1);
+    const s = ctx.createBufferSource();
+    s.buffer = b;
     const cv = ctx.createConvolver();
     cv.normalize = false;
     cv.buffer = irs[key];
     s.connect(cv);
-    cv.connect(sum);
+    cv.connect(ctx.destination);
     s.start(0);
   }
   return ctx.startRendering();
@@ -315,123 +416,161 @@ async function limitInPlace(L, R, sr, ceiling, maybeYield) {
 export async function renderSoundtrack(sampleRate = 48000, opts = {}) {
   if (typeof OfflineAudioContext === 'undefined') throw new Error('OfflineAudioContext unavailable');
   const sr = sampleRate;
-  const tStart = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  const srHalf = sr / 2;
+  const clock = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const tStart = clock();
+  const phase = { pool: 0, mix: 0, waitNotes: 0, waitWet: 0, place: 0, wind: 0, master: 0 };
   const maybeYield = makeYielder(opts.budgetMs ?? 20);
   const total = Math.round(TOTAL_DURATION * sr);
   const L = new Float32Array(total);
   const R = new Float32Array(total);
   const irs = {
-    hall: makeIR(sr, { seconds: 2.4, rt60: 2.1, predelay: 0.018, bright: 7000, dark: 1800, early: 10, seed: 11 }),
-    room: makeIR(sr, { seconds: 0.7, rt60: 0.5, predelay: 0.005, bright: 9000, dark: 2500, early: 14, seed: 23 }),
+    hall: makeIR(srHalf, { seconds: 2.4, rt60: 2.1, predelay: 0.018, bright: 6500, dark: 1800, early: 10, seed: 11 }),
+    room: makeIR(srHalf, { seconds: 0.7, rt60: 0.5, predelay: 0.005, bright: 8000, dark: 2500, early: 14, seed: 23 }),
   };
   const sections = buildScore();
+  for (const sec of sections) for (const ev of sec.events) ev.key = voiceKey(ev.voice, ev.midi, ev.dur, ev.vel, ev.p || {});
   const stats = [];
-  const clock = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
-  const phase = { mix: 0, waitOAC: 0, place: 0, wind: 0, master: 0 };
 
-  const place = (sec, out) => {
+  let c0 = clock();
+  const hc = typeof navigator !== 'undefined' && navigator.hardwareConcurrency ? navigator.hardwareConcurrency : 2;
+  const pool = opts.workers === false ? null : await SynthPool.create(clamp(hc - 1, 1, 3));
+  phase.pool = clock() - c0;
+
+  // wind bed: half rate, in a worker if we have one
+  const windLen = (total >> 1) + 2;
+  let windP = null;
+  if (pool) {
+    const w = pool.leastLoaded();
+    pool.load[w] += 120;
+    windP = pool.post(w, { type: 'wind', sr: srHalf, length: windLen, seed: WIND_SEED });
+  }
+
+  const noteReqs = [];
+  const request = (k) => {
+    if (pool && k < sections.length && !noteReqs[k]) noteReqs[k] = requestSectionNotes(pool, sections[k], sr).catch(() => null);
+  };
+  for (let k = 0; k < LOOKAHEAD; k++) request(k);
+
+  const place = (sec, bus, wet) => {
+    const [DL, DR] = bus.dry;
+    const len = bus.len;
+    if (wet) {
+      const wl = wet.getChannelData(0);
+      const wr = wet.getChannelData(1);
+      const hmax = wl.length - 2;
+      for (let i = 0; i < len; i++) {
+        const j = Math.min(i >> 1, hmax);
+        const fr = (i & 1) * 0.5;
+        DL[i] += wl[j] + (wl[j + 1] - wl[j]) * fr;
+        DR[i] += wr[j] + (wr[j + 1] - wr[j]) * fr;
+      }
+    }
+    if (sec.eq) {
+      eq(DL, sr, sec.eq);
+      eq(DR, sr, sec.eq);
+    }
     const a = Math.round((sec.measure[0] - sec.start) * sr);
     const b = Math.round((sec.measure[1] - sec.start) * sr);
-    const ch = [out.getChannelData(0), out.getChannelData(1)];
-    const rms = kRms(ch, sr, a, b);
+    const rms = kRms([DL, DR], sr, a, b);
     const want = MUSIC_TARGET * dbToGain(sec.loudDb || 0);
     const g = rms > 1e-6 ? clamp(want / rms, 0.05, 30) : 1;
     const s0 = Math.round(sec.start * sr);
-    const fadeInEnd = (sec.t0 - sec.start) * sr;
-    const tailStart = (sec.t1 - sec.start) * sr;
-    const tailLen = XFADE * sr;
-    for (let i = 0; i < out.length; i++) {
-      const idx = s0 + i;
-      if (idx < 0) continue;
-      if (idx >= total) break;
-      let w = 1;
-      if (i < fadeInEnd) {
-        const x = i / fadeInEnd;
-        w = Math.sin((x * Math.PI) / 2) ** 2;
-      } else if (i > tailStart) {
-        const x = (i - tailStart) / tailLen;
-        w = x >= 1 ? 0 : Math.cos((x * Math.PI) / 2) ** 2;
-      }
-      if (w === 0) continue;
-      L[idx] += ch[0][i] * g * w;
-      R[idx] += ch[1][i] * g * w;
+    const fadeInEnd = Math.round((sec.t0 - sec.start) * sr);
+    const tailStart = Math.round((sec.t1 - sec.start) * sr);
+    const tailLen = Math.round(XFADE * sr);
+    const iEnd = Math.min(len, total - s0, tailStart + tailLen);
+    for (let i = Math.max(0, -s0); i < iEnd; i++) {
+      let w = g;
+      if (i < fadeInEnd) w *= Math.sin(((i / fadeInEnd) * Math.PI) / 2) ** 2;
+      else if (i > tailStart) w *= Math.cos((((i - tailStart) / tailLen) * Math.PI) / 2) ** 2;
+      L[s0 + i] += DL[i] * w;
+      R[s0 + i] += DR[i] * w;
     }
     stats.push({ id: sec.id, rawRms: rms, gain: g, events: sec.events.length });
   };
 
-  // synthesise + mix each section, keep up to MAX_INFLIGHT offline renders running
-  const inflight = [];
   const scratch = { L: new Float32Array(0), R: new Float32Array(0) };
-  for (const sec of sections) {
-    let c0 = clock();
-    const bus = await mixSection(sec, sr, maybeYield, scratch);
-    clearVoiceCache(); // bounded memory: notes are rarely shared between eras
+  const inflight = [];
+  for (let k = 0; k < sections.length; k++) {
+    const sec = sections[k];
+    request(k + LOOKAHEAD);
+    c0 = clock();
+    const notes = pool ? await noteReqs[k] : null;
+    phase.waitNotes += clock() - c0;
+    c0 = clock();
+    const bus = await mixSection(sec, sr, maybeYield, scratch, notes);
+    if (!pool) clearVoiceCache(); // bounded memory on the fallback path
     phase.mix += clock() - c0;
-    inflight.push(renderSectionOAC(sec, bus, irs, sr).then((out) => ({ sec, out })));
+    inflight.push(renderWetOAC(bus, irs, srHalf).then((wet) => ({ sec, bus, wet })));
     if (inflight.length >= MAX_INFLIGHT) {
       c0 = clock();
-      const { sec: s, out } = await inflight.shift();
-      phase.waitOAC += clock() - c0;
+      const r = await inflight.shift();
+      phase.waitWet += clock() - c0;
       c0 = clock();
-      place(s, out);
+      place(r.sec, r.bus, r.wet);
       phase.place += clock() - c0;
       await maybeYield();
     }
-    if (opts.onProgress) opts.onProgress(stats.length / sections.length);
+    if (opts.onProgress) opts.onProgress((k + 1) / sections.length);
   }
-
-  // wind bed while the last renders finish
-  let c0 = clock();
-  const wind = new WindGen(sr / 2, (total >> 1) + 2, windinessAt, 4242);
-  while (!wind.process(1 << 15)) await maybeYield();
-  phase.wind = clock() - c0;
   for (const p of inflight) {
     c0 = clock();
-    const { sec, out } = await p;
-    phase.waitOAC += clock() - c0;
-    place(sec, out);
+    const r = await p;
+    phase.waitWet += clock() - c0;
+    c0 = clock();
+    place(r.sec, r.bus, r.wet);
+    phase.place += clock() - c0;
   }
-  c0 = clock();
-  stats.sort((a, b) => sections.findIndex((s) => s.id === a.id) - sections.findIndex((s) => s.id === b.id));
 
-  // calibrate wind level: K-RMS of the bed relative to its mean windiness
+  c0 = clock();
+  let windL;
+  let windR;
+  const windRes = windP ? await windP.catch(() => null) : null;
+  if (windRes) {
+    windL = windRes.L;
+    windR = windRes.R;
+  } else {
+    const wind = new WindGen(srHalf, windLen, windinessAt, WIND_SEED);
+    while (!wind.process(1 << 15)) await maybeYield();
+    windL = wind.L;
+    windR = wind.R;
+  }
+  if (pool) pool.terminate();
+  phase.wind = clock() - c0;
+  c0 = clock();
+
+  // wind level: K-RMS of the bed relative to its mean windiness
   let meanW = 0;
-  const step = Math.round(sr / 10);
   let cnt = 0;
-  for (let i = 0; i < total; i += step) {
-    meanW += windinessAt(i / sr);
+  for (let t = 0; t < TOTAL_DURATION; t += 0.1) {
+    meanW += windinessAt(t);
     cnt++;
   }
   meanW /= cnt;
-  const windRms = kRms([wind.L, wind.R], wind.sr) || 1e-6;
+  const windRms = kRms([windL, windR], srHalf) || 1e-6;
   const wg = (WIND_LEVEL * MUSIC_TARGET * meanW) / windRms;
   await maybeYield();
 
-  // sum, fade the very beginning/end, limit, normalise
+  // sum (wind interpolated up from half rate), fade the very start and end
   const fadeInN = Math.round(0.4 * sr);
   const endFadeA = Math.round(176.9 * sr);
   for (let i = 0; i < total; i++) {
-    let w = 1;
-    if (i < fadeInN) w = i / fadeInN;
-    if (i > endFadeA) {
-      const x = (i - endFadeA) / (total - endFadeA);
-      w = Math.cos((x * Math.PI) / 2) ** 2;
-    }
-    // wind is generated at half rate: linear-interpolate up
     const j = i >> 1;
     const fr = (i & 1) * 0.5;
-    const wl = wind.L[j] + (wind.L[j + 1] - wind.L[j]) * fr;
-    const wr = wind.R[j] + (wind.R[j + 1] - wind.R[j]) * fr;
+    const wl = windL[j] + (windL[j + 1] - windL[j]) * fr;
+    const wr = windR[j] + (windR[j + 1] - windR[j]) * fr;
+    let w = 1;
+    if (i < fadeInN) w = i / fadeInN;
+    else if (i > endFadeA) w = Math.cos((((i - endFadeA) / (total - endFadeA)) * Math.PI) / 2) ** 2;
     L[i] = (L[i] + wl * wg) * w;
     R[i] = (R[i] + wr * wg) * w;
   }
   await maybeYield();
   const prePeak = peakOf([L, R]);
-  // headroom: put the loudest era peaks just above the ceiling so the limiter only shaves transients
-  const drive = 1;
   const limited = await limitInPlace(L, R, sr, CEILING * 0.995, maybeYield);
   const peak = peakOf([L, R]) || 1;
-  const norm = (CEILING * 0.995 * drive) / peak;
+  const norm = (CEILING * 0.995) / peak;
   for (let i = 0; i < total; i++) {
     L[i] *= norm;
     R[i] *= norm;
@@ -441,9 +580,9 @@ export async function renderSoundtrack(sampleRate = 48000, opts = {}) {
   const out = new AudioBuffer({ length: total, numberOfChannels: 2, sampleRate: sr });
   out.copyToChannel(L, 0);
   out.copyToChannel(R, 1);
-  const tEnd = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  const tEnd = clock();
   phase.master = tEnd - c0;
-  lastStats = { ms: tEnd - tStart, phase, sampleRate: sr, prePeak, limitedFraction: limited, normGain: norm, windGain: wg, sections: stats };
+  lastStats = { ms: tEnd - tStart, workers: pool ? pool.workers.length : 0, phase, sampleRate: sr, prePeak, limitedFraction: limited, normGain: norm, windGain: wg, sections: stats };
   return out;
 }
 
