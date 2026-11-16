@@ -336,6 +336,37 @@ export async function boot() {
   });
   audioEngine.init().catch((e) => console.warn('[audio]', e));
   requestAnimationFrame(tick);
+  warmUpScenes();
+}
+
+/**
+ * Bake every era's static layers in the background (one panel per idle slice,
+ * nearest eras first) so playback never hitches when a new frame slides in.
+ */
+function warmUpScenes() {
+  const scratch = document.createElement('canvas');
+  scratch.width = PANEL_SIZE;
+  scratch.height = PANEL_SIZE;
+  const sctx = scratch.getContext('2d');
+  const start = Math.max(0, Math.floor((currentT - INTRO_SEC) / SCENE_SEC));
+  const order = SCENES.map((s, i) => i).sort((a, b) => Math.abs(a - start) - Math.abs(b - start) || a - b);
+  const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 30));
+  const step = () => {
+    if (!order.length) return;
+    if (isPlaying) {
+      // while playing, only warm when we have slack
+      setTimeout(() => idle(step), 120);
+      return;
+    }
+    const i = order.shift();
+    try {
+      renderPanelInto(sctx, i, 4, 500, {});
+    } catch (e) {
+      // the scene error is reported by renderScenePanel
+    }
+    idle(step);
+  };
+  idle(step);
 }
 
 function tick() {
