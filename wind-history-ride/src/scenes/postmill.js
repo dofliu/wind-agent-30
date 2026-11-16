@@ -89,13 +89,13 @@ const LBAR_X = 72; // vertical bar-border in the left margin
 
 // --- mill geometry (world units = px) -----------------------------------------------
 const MX = 322; // post axis x
-const MY = 640; // crosstree level y (screen)
+const MY = 652; // crosstree level y (screen)
 const ES = 0.26; // sin(elevation): ground plane foreshortening
 const EC = 0.966;
-const BUCK = { A: 40, D: 54, h0: 126, h1: 244, h2: 284 }; // half-width, half-depth, floor, eaves, ridge
-const SHAFT_H = 226; // windshaft height
-const SAIL = { r0: 30, r1: 176, lead: -8, trail: 42, bars: 9 };
-const TAIL = { reach: 172, endH: 44 }; // tailpole reach behind the post, end height
+const BUCK = { A: 43, D: 58, h0: 120, h1: 242, h2: 286 }; // half-width, half-depth, floor, eaves, ridge
+const SHAFT_H = 222; // windshaft height
+const SAIL = { r0: 30, r1: 188, lead: -8, trail: 45, bars: 10 };
+const TAIL = { reach: 160, endH: 52 }; // tailpole reach behind the post, end height
 const LADDER = { reach: 82, w: 11 };
 const YAW0 = 205 * DEG; // turned away from the wind (sails behind the buck)
 const YAW1 = 37 * DEG; // facing the wind-head, front three-quarter to the viewer
@@ -104,11 +104,11 @@ const TURN1 = 5.75;
 const SPIN0 = 5.55;
 
 // --- drollery placement ------------------------------------------------------------
-const MONK = { x: 148, y: 934 };
-const KNIGHT = { x: 392, y: 934 };
-const SNAIL = { x: 560, y: 934 };
-const HYBRID = { x: 842, y: 862 };
-const WINDHEAD = { x: 786, y: 338 };
+const MONK = { x: 150, y: 936, s: 1.22 };
+const KNIGHT = { x: 380, y: 936, s: 1.28 };
+const SNAIL = { x: 560, y: 936, s: 1.25 };
+const HYBRID = { x: 846, y: 858, s: 1.2 };
+const WINDHEAD = { x: 790, y: 340, s: 1.35 };
 
 // gold spots for sparkles (filled by the layout below, deterministic)
 const GOLD_SPOTS = [];
@@ -333,10 +333,16 @@ function paintText(g) {
   const x1 = INIT.x + INIT.s + 16;
   // display letters after the initial, touched with yellow
   g.font = blackletter(33);
-  const disp = 'OLENDINUM';
+  const disp = 'olendinum';
   const dw = g.measureText(disp).width;
-  g.fillStyle = 'rgba(236,200,92,0.55)';
-  g.fillRect(x1 - 2, 90, dw + 4, 28);
+  // each display letter "touched" with a stroke of yellow
+  let lx = x1;
+  for (const ch of disp) {
+    const cw = g.measureText(ch).width;
+    g.fillStyle = 'rgba(232,192,80,0.6)';
+    g.fillRect(lx + cw * 0.32, 96, Math.max(2.5, cw * 0.36), 20);
+    lx += cw;
+  }
   g.fillStyle = C.ink;
   g.fillText(disp, x1, 114);
   g.font = blackletter(32);
@@ -365,11 +371,11 @@ function paintText(g) {
   // full-width line: what the picture shows
   g.font = blackletter(32);
   g.fillStyle = C.ink;
-  g.fillText('Molitor trahit caudam, et tota domus vertitur ad ventum.', TB.x0, 240);
-  // paragraph mark (blue pilcrow) before it
+  g.fillText('Molitor trahit caudam, et tota domus vertitur ad ventum.', TB.x0 + 26, 240);
+  // paragraph mark (blue paraph) before it
   g.fillStyle = C.lapis;
-  g.font = `700 30px ${K.FONT.garamond}`;
-  g.fillText('¶', TB.x0 - 26, 240);
+  g.font = `700 32px ${K.FONT.garamond}`;
+  g.fillText('¶', TB.x0 + 2, 240);
 }
 
 /** Lombardic champ initial "M": gold letter on a quartered lapis / rose ground. */
@@ -656,13 +662,13 @@ function paintDiaper(g, rng) {
   g.beginPath();
   g.rect(x0, y0, x1 - x0, y1 - y0);
   g.clip();
-  const D = 23; // half-diagonal of each lozenge
+  const D = 29; // half-diagonal of each lozenge
   for (let j = -1; j * D < y1 - y0 + D * 2; j++) {
     for (let i = -1; i * D < x1 - x0 + D * 2; i++) {
       if ((i + j) % 2 !== 0) continue;
       const cx = x0 + i * D;
       const cy = y0 + j * D;
-      const red = ((i - j) / 2) % 2 !== 0;
+      const red = Math.abs(i) % 2 === 1;
       g.beginPath();
       g.moveTo(cx, cy - D);
       g.lineTo(cx + D, cy);
@@ -699,7 +705,7 @@ function paintDiaper(g, rng) {
   }
   // gold lattice over the joins
   g.strokeStyle = C.gold;
-  g.lineWidth = 2;
+  g.lineWidth = 1.6;
   g.beginPath();
   for (let k = -40; k < 80; k++) {
     const c = k * 2 * D;
@@ -816,6 +822,101 @@ function gothicTree(g, x, y, h, rng, crownCol = C.green, lightCol = C.greenLight
   }
 }
 
+/** Small Romanesque chapel on the far hill (west tower, round-arched door). */
+function paintChapel(g, x, y) {
+  const stone = '#ece0c4';
+  const stoneSh = '#cdbd99';
+  // nave
+  g.beginPath();
+  g.rect(x, y - 34, 52, 34);
+  fillInk(g, stone, 1.3);
+  // nave roof
+  g.beginPath();
+  g.moveTo(x - 4, y - 33);
+  g.lineTo(x + 8, y - 52);
+  g.lineTo(x + 58, y - 52);
+  g.lineTo(x + 56, y - 33);
+  g.closePath();
+  fillInk(g, C.roof, 1.3);
+  g.strokeStyle = 'rgba(70,20,14,0.6)';
+  g.lineWidth = 0.9;
+  g.beginPath();
+  for (let k = 1; k < 9; k++) {
+    g.moveTo(x - 4 + k * 6.6, y - 33);
+    g.lineTo(x + 8 + k * 5.6, y - 52);
+  }
+  g.stroke();
+  // apse at the east end
+  g.beginPath();
+  g.moveTo(x + 52, y);
+  g.lineTo(x + 52, y - 26);
+  g.quadraticCurveTo(x + 68, y - 26, x + 68, y - 12);
+  g.lineTo(x + 68, y);
+  g.closePath();
+  fillInk(g, stoneSh, 1.2);
+  // round-arched windows
+  g.fillStyle = '#2c1a10';
+  for (const wx of [x + 14, x + 30, x + 44]) {
+    g.beginPath();
+    g.moveTo(wx - 2.5, y - 12);
+    g.lineTo(wx - 2.5, y - 22);
+    g.arc(wx, y - 22, 2.5, Math.PI, 0);
+    g.lineTo(wx + 2.5, y - 12);
+    g.closePath();
+    g.fill();
+  }
+  // west tower
+  g.beginPath();
+  g.rect(x - 22, y - 64, 24, 64);
+  fillInk(g, stone, 1.3);
+  g.strokeStyle = 'rgba(120,96,60,0.55)';
+  g.lineWidth = 0.8;
+  g.beginPath();
+  for (let k = 1; k < 9; k++) {
+    g.moveTo(x - 22, y - k * 7.2);
+    g.lineTo(x + 2, y - k * 7.2);
+  }
+  g.stroke();
+  g.beginPath();
+  g.moveTo(x - 25, y - 63);
+  g.lineTo(x - 10, y - 90);
+  g.lineTo(x + 5, y - 63);
+  g.closePath();
+  fillInk(g, C.lapis, 1.3);
+  // belfry openings
+  g.fillStyle = '#2c1a10';
+  for (const wx of [x - 15, x - 6]) {
+    g.beginPath();
+    g.moveTo(wx - 2, y - 46);
+    g.lineTo(wx - 2, y - 54);
+    g.arc(wx, y - 54, 2, Math.PI, 0);
+    g.lineTo(wx + 2, y - 46);
+    g.closePath();
+    g.fill();
+  }
+  // door
+  g.beginPath();
+  g.moveTo(x - 15, y);
+  g.lineTo(x - 15, y - 14);
+  g.arc(x - 10, y - 14, 5, Math.PI, 0);
+  g.lineTo(x - 5, y);
+  g.closePath();
+  fillInk(g, C.woodDark, 1);
+  // cross on the tower
+  g.strokeStyle = C.ink;
+  g.lineWidth = 3;
+  g.beginPath();
+  g.moveTo(x - 10, y - 90);
+  g.lineTo(x - 10, y - 104);
+  g.moveTo(x - 15, y - 99);
+  g.lineTo(x - 5, y - 99);
+  g.stroke();
+  g.strokeStyle = C.gold;
+  g.lineWidth = 1.4;
+  g.stroke();
+  GOLD_SPOTS.push([x - 10, y - 99, 5]);
+}
+
 function paintLandscape(g, rng) {
   g.save();
   g.beginPath();
@@ -840,6 +941,7 @@ function paintLandscape(g, rng) {
   hillPath(g, far);
   inkStroke(g, 1.6);
 
+  paintChapel(g, 716, 562);
   gothicTree(g, 846, 512, 120, rng, C.green, C.greenPale);
   gothicTree(g, 618, 584, 78, rng, C.greenDeep, C.greenLight);
 
@@ -1265,22 +1367,6 @@ function drawBuck(ctx, M) {
     ctx.stroke();
     ctx.strokeStyle = C.woodLight;
     ctx.lineWidth = 2;
-    ctx.stroke();
-    // finial cross at the gable peak (a pious touch, common in illuminations)
-    const f0 = P3(0, h2 + 2, w);
-    const f1 = P3(0, h2 + 22, w);
-    ctx.strokeStyle = C.ink;
-    ctx.lineWidth = 3.4;
-    ctx.beginPath();
-    ctx.moveTo(f0.x, f0.y);
-    ctx.lineTo(f1.x, f1.y);
-    const c0 = P3(-6, h2 + 15, w);
-    const c1 = P3(6, h2 + 15, w);
-    ctx.moveTo(c0.x, c0.y);
-    ctx.lineTo(c1.x, c1.y);
-    ctx.stroke();
-    ctx.strokeStyle = C.gold;
-    ctx.lineWidth = 1.6;
     ctx.stroke();
   }
 }
@@ -1815,7 +1901,7 @@ function drawWindHead(ctx, lt, at) {
   const rays = 5;
   for (let i = 0; i < rays; i++) {
     const a = Math.PI + (-0.22 + (i / (rays - 1)) * 0.5);
-    const len = 220 + 80 * gust + i * 10;
+    const len = 175 + 60 * gust + i * 8;
     const ox = x - 40;
     const oy = y + 6;
     ctx.beginPath();
@@ -1911,10 +1997,10 @@ function drawWindHead(ctx, lt, at) {
   ctx.strokeStyle = C.brownInk;
   ctx.lineWidth = 1.2;
   ctx.beginPath();
-  ctx.moveTo(fx - 13, fy - 10);
-  ctx.lineTo(fx - 4, fy - 9);
-  ctx.moveTo(fx + 4, fy - 9);
-  ctx.lineTo(fx + 13, fy - 10);
+  ctx.moveTo(fx - 13, fy - 9);
+  ctx.quadraticCurveTo(fx - 8, fy - 13, fx - 3, fy - 10);
+  ctx.moveTo(fx + 3, fy - 10);
+  ctx.quadraticCurveTo(fx + 8, fy - 13, fx + 13, fy - 9);
   ctx.moveTo(fx, fy - 4);
   ctx.lineTo(fx - 2, fy + 5);
   ctx.lineTo(fx + 1, fy + 6);
@@ -2169,7 +2255,7 @@ function drawKnight(ctx, lt, at, riderX, thumb) {
   // sword arm: raised over the head (duel) -> lowered (gaping)
   const sh = { x: x - 8 + lean, y: y - 92 };
   const raise = 1 - look;
-  const handF = { x: x - 4, y: y - 128 + beat * 3 };
+  const handF = { x: x - 6, y: y - 120 + beat * 3 };
   const handL = { x: x - 22, y: y - 66 };
   const hand = { x: lerp(handL.x, handF.x, raise), y: lerp(handL.y, handF.y, raise) };
   const elbow = { x: lerp(x - 22, x - 20, raise), y: lerp(y - 80, y - 112, raise) };
@@ -2183,7 +2269,7 @@ function drawKnight(ctx, lt, at, riderX, thumb) {
     6,
     C.mail,
   );
-  const swA = lerp(1.95, -0.85 + beat * 0.12, raise);
+  const swA = lerp(1.95, -0.55 + beat * 0.12, raise);
   const bl = 58;
   const tip = { x: hand.x + Math.cos(swA) * bl, y: hand.y + Math.sin(swA) * bl };
   ctx.lineCap = 'butt';
@@ -2217,7 +2303,7 @@ function drawKnight(ctx, lt, at, riderX, thumb) {
   ctx.lineWidth = 1;
   ctx.stroke();
   ctx.lineCap = 'round';
-  GOLD_SPOTS_DYN.push([gx, gy, 5]);
+  pushDyn(gx, gy, 5);
   // head: mail coif with an open face; tips back to gape at the bird
   const hx = x + 2 + lean;
   const hy = y - 110;
@@ -2260,6 +2346,27 @@ function drawKnight(ctx, lt, at, riderX, thumb) {
 }
 
 const GOLD_SPOTS_DYN = [];
+let CUR_S = null; // origin/scale of the drollery currently being drawn
+
+function pushDyn(x, y, r) {
+  if (CUR_S) GOLD_SPOTS_DYN.push([CUR_S.x + (x - CUR_S.x) * CUR_S.s, CUR_S.y + (y - CUR_S.y) * CUR_S.s, r * CUR_S.s]);
+  else GOLD_SPOTS_DYN.push([x, y, r]);
+}
+
+/** Draw `fn` scaled about the figure's foot point o = {x, y, s}. */
+function scaled(ctx, o, fn) {
+  ctx.save();
+  ctx.translate(o.x, o.y);
+  ctx.scale(o.s, o.s);
+  ctx.translate(-o.x, -o.y);
+  CUR_S = o;
+  const r = fn();
+  CUR_S = null;
+  ctx.restore();
+  return r;
+}
+
+const sp = (o, p) => ({ x: o.x + (p.x - o.x) * o.s, y: o.y + (p.y - o.y) * o.s });
 
 function drawSnail(ctx, lt, at, riderX, look, thumb) {
   const { x, y } = SNAIL;
@@ -2354,16 +2461,16 @@ function drawBanderole(ctx, lt, from, look) {
   const open = sstep(2.5, 3.5, lt) * (1 - sstep(6.4, 7.0, lt));
   if (open <= 0.01) return;
   const p0 = { x: from.x + 6, y: from.y - 4 };
-  const p1 = { x: from.x + 70, y: from.y - 70 };
-  const p2 = { x: from.x + 150, y: from.y - 6 };
-  const p3 = { x: from.x + 238, y: from.y - 64 };
+  const p1 = { x: from.x + 70, y: from.y - 62 };
+  const p2 = { x: from.x + 160, y: from.y + 6 };
+  const p3 = { x: from.x + 262, y: from.y - 44 };
   const pts = K.sampleCubic(p0, p1, p2, p3, 48);
   // arclength
   const acc = [0];
   for (let i = 1; i < pts.length; i++) acc.push(acc[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
   const total = acc[acc.length - 1];
   const reveal = total * open;
-  const W = 12;
+  const W = 13.5;
   const top = [];
   const bot = [];
   let endI = 0;
@@ -2405,7 +2512,7 @@ function drawBanderole(ctx, lt, from, look) {
   for (let i = bot.length - 1; i >= 0; i--) ctx.lineTo(bot[i].x, bot[i].y);
   ctx.closePath();
   ctx.clip();
-  ctx.font = blackletter(19);
+  ctx.font = blackletter(21);
   ctx.fillStyle = C.ink;
   const text = 'ecce alia bestia';
   const tw = ctx.measureText(text).width;
@@ -2547,7 +2654,7 @@ function drawHybrid(ctx, lt, at) {
   ctx.fillStyle = goldGrad(ctx, ex - 10, ey - 10, ex + 10, ey + 10);
   ctx.fill();
   inkStroke(ctx, 1.1);
-  GOLD_SPOTS_DYN.push([ex + Math.cos(ta) * 8, ey + Math.sin(ta) * 8, 6]);
+  pushDyn(ex + Math.cos(ta) * 8, ey + Math.sin(ta) * 8, 6);
   // pennon hanging from the trumpet
   const pa = { x: mx + Math.cos(ta) * 34, y: my + Math.sin(ta) * 34 };
   const pb = { x: mx + Math.cos(ta) * 60, y: my + Math.sin(ta) * 60 };
@@ -2726,7 +2833,7 @@ export function render(kit, slot, scene, params) {
   ctx.rect(PIC.x0, 0, PIC.x1 - PIC.x0, PIC.y1); // sails may break out above the frame
   ctx.clip();
 
-  drawWindHead(ctx, lt, at);
+  scaled(ctx, WINDHEAD, () => drawWindHead(ctx, lt, at));
   drawDonkeyTrain(ctx, lt, at);
 
   const phi = isThumbnail ? YAW1 : yawAt(lt);
@@ -2752,7 +2859,8 @@ export function render(kit, slot, scene, params) {
       // walking phase from the swept angle
       const step = (YAW0 - phi) * 9 + at * 0.4 * push;
       const p = isThumbnail ? 0.15 : 0.2 + 0.8 * push;
-      drawMiller(ctx, { x: end.x + 2 * dirMove, y: end.y }, dirMove, step, p, at);
+      const hand = { x: end.x + 2 * dirMove, y: end.y };
+      scaled(ctx, { x: hand.x, y: hand.y, s: 1.2 }, () => drawMiller(ctx, hand, dirMove, step, p, at));
     },
   });
   items.sort((a, b) => a.z - b.z);
@@ -2760,11 +2868,11 @@ export function render(kit, slot, scene, params) {
   ctx.restore();
 
   // --- the bas-de-page --------------------------------------------------------
-  drawMonk(ctx, isThumbnail ? -5 : lt, at, riderX);
-  const kn = drawKnight(ctx, lt, at, riderX, isThumbnail);
-  drawSnail(ctx, lt, at, riderX, kn.look, isThumbnail);
-  if (!isThumbnail) drawBanderole(ctx, lt, kn.mouth, kn.look);
-  drawHybrid(ctx, isThumbnail ? -5 : lt, at);
+  scaled(ctx, MONK, () => drawMonk(ctx, isThumbnail ? -5 : lt, at, riderX));
+  const kn = scaled(ctx, KNIGHT, () => drawKnight(ctx, lt, at, riderX, isThumbnail));
+  scaled(ctx, SNAIL, () => drawSnail(ctx, lt, at, riderX, kn.look, isThumbnail));
+  if (!isThumbnail) drawBanderole(ctx, lt, sp(KNIGHT, kn.mouth), kn.look);
+  scaled(ctx, HYBRID, () => drawHybrid(ctx, isThumbnail ? -5 : lt, at));
 
   drawSparkles(ctx, at, statics.concat(GOLD_SPOTS_DYN));
 

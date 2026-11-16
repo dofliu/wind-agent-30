@@ -68,6 +68,7 @@ const REG = { x: 2.2, y: 1.5 };
 // -----------------------------------------------------------------------------
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const lerp = (a, b, t) => a + (b - a) * t;
+const pmod = (a, m) => ((a % m) + m) % m;
 function sstep(a, b, x) {
   const t = clamp((x - a) / (b - a), 0, 1);
   return t * t * (3 - 2 * t);
@@ -192,9 +193,9 @@ function corner(k, y) {
   return v3(r * Math.cos(a), y, r * Math.sin(a));
 }
 // the wind blows from the front-left; the wheel faces it, the tail streams behind
-const UPW = norm3(v3(-0.5, 0, 0.866));
+const UPW = norm3(v3(-0.62, 0, 0.785));
 const E1 = v3(0, 1, 0);
-const E2 = norm3(v3(0.866, 0, 0.5)); // in the wheel plane, horizontal (E2 x E1 = UPW)
+const E2 = norm3(v3(0.785, 0, 0.62)); // in the wheel plane, horizontal (E2 x E1 = UPW)
 const HEAD = v3(0, TOWER.H + 26, 0);
 const HUB = add3(HEAD, mul3(UPW, 46));
 const WR = 122; // wheel radius
@@ -215,10 +216,10 @@ const WATER_Y = TANK.y + 5;
 // timing
 // -----------------------------------------------------------------------------
 function gust(T) {
-  return sstep(3.7, 4.4, T) * (1 - sstep(5.9, 6.9, T));
+  return sstep(2.8, 3.5, T) * (1 - sstep(5.6, 6.6, T));
 }
 function gustInt(T) {
-  return intSmooth(T, 3.7, 4.4) - intSmooth(T, 5.9, 6.9);
+  return intSmooth(T, 2.8, 3.5) - intSmooth(T, 5.6, 6.6);
 }
 /** wheel revolutions: 1 rev/s (one pump stroke every 2 beats), a little faster in the gust */
 function wheelRev(T) {
@@ -226,7 +227,7 @@ function wheelRev(T) {
 }
 /** self-regulation: the sections swing back (furl) in the gust */
 function furlAngle(T) {
-  return 58 * DEG * sstep(4.15, 4.9, T) * (1 - sstep(6.0, 7.1, T));
+  return 58 * DEG * sstep(3.35, 4.25, T) * (1 - sstep(5.7, 6.9, T));
 }
 function rodLift(T) {
   return 7 * Math.sin(TAU * wheelRev(T));
@@ -237,13 +238,13 @@ function flow(T) {
 
 // tumbleweed ground contacts (time, x); it bounces on the beats and hops the bicycle
 const TUMBLE = [
-  [3.1, -330],
-  [3.55, -110],
-  [4.0, 110],
-  [4.5, 330],
-  [5.5, 905],
-  [5.95, 1085],
-  [6.4, 1260],
+  [2.0, -330],
+  [2.5, -140],
+  [3.0, 62],
+  [3.5, 268],
+  [4.5, 748],
+  [5.0, 935],
+  [5.45, 1110],
 ];
 const TUMBLE_G = 2000;
 const TUMBLE_R = 31;
@@ -528,6 +529,57 @@ function paintRailway(g, rng) {
   }, C.redDk, 1);
   g.fillStyle = C.key;
   g.fillRect(wx - 66, ry - 11, 5, 10);
+}
+
+function paintFarmstead(g) {
+  // a far-off homestead: white frame house, red barn, a line of cottonwoods
+  const gy = HORIZON + 3;
+  for (const [x, r] of [
+    [760, 9],
+    [772, 12],
+    [786, 10],
+    [880, 8],
+    [892, 11],
+  ]) {
+    plate(g, (gg) => {
+      gg.beginPath();
+      gg.ellipse(x, gy - r - 4, r * 0.8, r, 0, 0, TAU);
+    }, '#6f7f3a', 0.8, key(0.7));
+    g.strokeStyle = key(0.7);
+    g.lineWidth = 1;
+    g.beginPath();
+    g.moveTo(x, gy - 4);
+    g.lineTo(x, gy);
+    g.stroke();
+  }
+  plate(g, (gg) => {
+    gg.beginPath();
+    gg.rect(806, gy - 15, 20, 15);
+  }, C.cream, 0.9);
+  plate(g, (gg) => {
+    gg.beginPath();
+    gg.moveTo(803, gy - 15);
+    gg.lineTo(816, gy - 25);
+    gg.lineTo(829, gy - 15);
+    gg.closePath();
+  }, '#5d6b78', 0.9);
+  g.fillStyle = C.key;
+  g.fillRect(810, gy - 10, 3, 4);
+  g.fillRect(818, gy - 10, 3, 4);
+  g.fillRect(820, gy - 27, 2.4, 6);
+  plate(g, (gg) => {
+    gg.beginPath();
+    gg.moveTo(836, gy);
+    gg.lineTo(836, gy - 14);
+    gg.lineTo(841, gy - 22);
+    gg.lineTo(853, gy - 22);
+    gg.lineTo(858, gy - 14);
+    gg.lineTo(858, gy);
+    gg.closePath();
+  }, C.red, 0.9);
+  g.strokeStyle = C.cream;
+  g.lineWidth = 0.8;
+  g.strokeRect(843, gy - 9, 8, 9);
 }
 
 function paintDistantHerd(g, rng) {
@@ -1044,13 +1096,14 @@ function paintCowBody(g, rng, o) {
   legs(true);
   const body = (gg) => {
     gg.beginPath();
-    gg.moveTo(30, -84);
-    gg.bezierCurveTo(8, -88, -30, -80, -54, -82);
-    gg.bezierCurveTo(-66, -82, -72, -76, -72, -62);
-    gg.bezierCurveTo(-72, -50, -68, -44, -62, -38);
-    gg.bezierCurveTo(-40, -32, 10, -30, 40, -36);
-    gg.bezierCurveTo(52, -38, 60, -46, 60, -56);
-    gg.bezierCurveTo(58, -70, 46, -80, 30, -84);
+    gg.moveTo(30, -86);
+    gg.bezierCurveTo(12, -82, -18, -79, -42, -85);
+    gg.bezierCurveTo(-54, -89, -66, -87, -70, -79);
+    gg.bezierCurveTo(-74, -67, -73, -50, -65, -39);
+    gg.bezierCurveTo(-48, -33, -18, -29, 10, -32);
+    gg.bezierCurveTo(30, -33, 46, -35, 55, -41);
+    gg.bezierCurveTo(62, -48, 61, -62, 53, -72);
+    gg.bezierCurveTo(47, -80, 39, -86, 30, -86);
     gg.closePath();
   };
   plate(g, body, o.coat, 1.6);
@@ -1157,12 +1210,9 @@ function paintHereford(g, rng) {
     face: '#f3e9d0',
     muzzle: '#e6c2a2',
     horns: 'short',
-    neckFrom: [
-      { x: 832, y: 598 },
-      { x: 806, y: 618 },
-      { x: 812, y: 640 },
-    ],
+    neck: { W: { x: 834, y: 600 }, B: { x: 806, y: 640 } },
     neckCol: '#93391f',
+    neckShade: 'rgba(60,20,10,0.35)',
     blink: 0,
   });
   // grass hiding the muzzle
@@ -1182,11 +1232,11 @@ function paintHereford(g, rng) {
 // -----------------------------------------------------------------------------
 // rings along the snout: [forward d, up c, half-width a, half-height b]
 const HEAD_RINGS = [
-  [-4, 1, 9.5, 9.5],
-  [7, 0.5, 10.5, 9.5],
-  [18, -3.5, 7.4, 7.6],
-  [28, -6, 7, 6.4],
-  [33, -6.5, 6, 5.2],
+  [-6, 2, 8, 8],
+  [6, 0, 10.5, 10.5],
+  [18, -4, 7.2, 7.4],
+  [28, -6, 6.8, 6.2],
+  [33.5, -6.5, 5.6, 4.8],
 ];
 function headBasis(yaw, pitch) {
   const cp = Math.cos(pitch);
@@ -1204,7 +1254,7 @@ function drawCowHead(g, o) {
     const x = (F.x * d + U.x * c + Sd.x * s) * k;
     const y = (F.y * d + U.y * c + Sd.y * s) * k;
     const z = (F.z * d + U.z * c + Sd.z * s) * k;
-    return { x: A.x + x, y: A.y - y * 0.954 + z * 0.3, z };
+    return { x: A.x + x, y: A.y - y * 0.98 + z * 0.2, z };
   };
   const rings = HEAD_RINGS.map(([d, c, a, b]) => {
     const pts = [];
@@ -1263,26 +1313,70 @@ function drawCowHead(g, o) {
   };
   drawHorn(-nearSide);
   drawEar(-nearSide);
-  // neck (hull of the shoulder points + the back ring), then the head loft; key first, fill after
-  const neck = o.neckFrom ? hull(o.neckFrom.concat(rings[0], rings[1].slice(0, 6))) : null;
+  // neck: a tapering tube from withers/brisket on the body to poll/throat on the head
   g.lineJoin = 'round';
-  g.strokeStyle = C.key;
-  g.lineWidth = 3.2;
-  if (neck) {
-    poly(g, neck);
+  if (o.neck) {
+    const { W, B } = o.neck;
+    const top = pt(-5, 9, 0);
+    const thr = pt(5, -8.5, 0);
+    const mid = pt(4, 0, 0);
+    const cTop = { x: (W.x + top.x) / 2, y: Math.min(W.y, top.y) - 5 };
+    const cBot = { x: (thr.x + B.x) / 2 + 4, y: Math.max(thr.y, B.y) + 7 };
+    const neckPath = (gg) => {
+      gg.beginPath();
+      gg.moveTo(W.x, W.y);
+      gg.quadraticCurveTo(cTop.x, cTop.y, top.x, top.y);
+      gg.lineTo(mid.x, mid.y);
+      gg.lineTo(thr.x, thr.y);
+      gg.quadraticCurveTo(cBot.x, cBot.y, B.x, B.y);
+      gg.lineTo(B.x - 22, B.y - 18);
+      gg.lineTo(W.x - 16, W.y + 14);
+      gg.closePath();
+    };
+    plate(g, neckPath, o.neckCol || o.coat, 0);
+    // stipple-free litho shading: a darker plate along the dewlap side
+    g.save();
+    neckPath(g);
+    g.clip();
+    g.fillStyle = o.neckShade || 'rgba(140,100,60,0.35)';
+    g.beginPath();
+    g.moveTo(thr.x, thr.y);
+    g.quadraticCurveTo(cBot.x, cBot.y, B.x, B.y);
+    g.lineTo(B.x, B.y - 8);
+    g.quadraticCurveTo(cBot.x - 2, cBot.y - 9, thr.x, thr.y - 5);
+    g.closePath();
+    g.fill();
+    g.restore();
+    g.strokeStyle = C.key;
+    g.lineWidth = 1.6;
+    g.beginPath();
+    g.moveTo(W.x, W.y);
+    g.quadraticCurveTo(cTop.x, cTop.y, top.x, top.y);
+    g.moveTo(thr.x, thr.y);
+    g.quadraticCurveTo(cBot.x, cBot.y, B.x, B.y);
+    g.stroke();
+    // a few neck folds
+    g.strokeStyle = key(0.4);
+    g.lineWidth = 0.9;
+    g.beginPath();
+    for (let i = 1; i <= 3; i++) {
+      const u = i / 4;
+      const a = { x: lerp(W.x, top.x, u), y: lerp(W.y, top.y, u) + 6 };
+      const b = { x: lerp(B.x, thr.x, u), y: lerp(B.y, thr.y, u) - 5 };
+      g.moveTo(lerp(a.x, b.x, 0.35), lerp(a.y, b.y, 0.35));
+      g.quadraticCurveTo(lerp(a.x, b.x, 0.5) + 3, lerp(a.y, b.y, 0.5), lerp(a.x, b.x, 0.7), lerp(a.y, b.y, 0.7));
+    }
     g.stroke();
   }
+  // head loft: key first, fill after (outline only on the silhouette)
+  g.strokeStyle = C.key;
+  g.lineWidth = 3.2;
   for (const h of hulls) {
     poly(g, h);
     g.stroke();
   }
   g.save();
   g.translate(REG.x * 0.6, REG.y * 0.6);
-  if (neck) {
-    g.fillStyle = o.neckCol || o.coat;
-    poly(g, neck);
-    g.fill();
-  }
   g.fillStyle = o.coat;
   for (const h of hulls) {
     poly(g, h);
@@ -1293,17 +1387,18 @@ function drawCowHead(g, o) {
     g.fillStyle = o.face;
     const f = [];
     const n = 7;
+    const fw = o.faceW || [8, 5.5];
     for (let i = 0; i <= n; i++) {
       const d = lerp(0, 33, i / n);
-      const w = lerp(8, 5.5, i / n);
-      f.push(pt(d, lerp(9, -1, i / n), w));
+      const w = lerp(fw[0], fw[1], i / n);
+      f.push(pt(d, lerp(9.5, -0.5, i / n), w));
     }
     for (let i = n; i >= 0; i--) {
       const d = lerp(0, 33, i / n);
-      const w = lerp(8, 5.5, i / n);
-      f.push(pt(d, lerp(9, -1, i / n), -w));
+      const w = lerp(fw[0], fw[1], i / n);
+      f.push(pt(d, lerp(9.5, -0.5, i / n), -w));
     }
-    poly(g, hull(f.concat(rings[4])));
+    poly(g, hull(f.concat(o.faceW ? [] : rings[4])));
     g.fill();
   }
   g.fillStyle = o.muzzle;
@@ -1891,7 +1986,7 @@ function drawWater(ctx, T) {
   const end = pts[pts.length - 1];
   ctx.fillStyle = '#eef7f9';
   for (let i = 0; i < 7; i++) {
-    const ph = (T * 3.1 + i * 0.37) % 1;
+    const ph = pmod(T * 3.1 + i * 0.37, 1);
     const ang = -Math.PI / 2 + (hash(i * 7.3) - 0.5) * 2.2;
     const sp = 10 + hash(i * 3.9) * 12;
     const dx = Math.cos(ang) * sp * ph * I;
@@ -1905,18 +2000,20 @@ function drawWater(ctx, T) {
 /** pose of the gag cow: drinking <-> watching the rider */
 function longhornPose(T, riderX, thumb) {
   const up = thumb ? 1 : sstep(0.15, 0.85, T) * (1 - sstep(7.35, 8.2, T));
-  const lagX = riderX - 34;
+  const lagX = riderX - 40;
   const target = Math.atan2(150, lagX - 380); // 0 = looking right, PI/2 = at us
-  const yawLook = clamp(target, 12 * DEG, 128 * DEG);
+  // follows the rider (and the tumbleweed) ... then turns to stare at us on bar 4
+  const stare = thumb ? 1 : sstep(5.8, 6.35, T) * (1 - sstep(7.15, 7.6, T));
+  const yawLook = lerp(clamp(target, 16 * DEG, 128 * DEG), 90 * DEG, stare);
   // little startle when the tumbleweed flies past
-  const startle = Math.exp(-Math.pow((T - 5.0) / 0.25, 2));
+  const startle = Math.exp(-Math.pow((T - 4.55) / 0.25, 2));
   const yaw = lerp(16 * DEG, yawLook, up);
-  const pitch = lerp(70 * DEG, 48 * DEG - startle * 14 * DEG, up) + Math.sin(T * 5.2) * 0.03 * (1 - up);
-  const anchor = { x: lerp(398, 378, up), y: lerp(593, 571, up) - startle * 5 };
+  const pitch = lerp(66 * DEG, 48 * DEG - startle * 14 * DEG, up) + Math.sin(T * 5.2) * 0.03 * (1 - up);
+  const anchor = { x: lerp(403, 376, up), y: lerp(589, 570, up) - startle * 5 };
   // drinking bob
   anchor.y += (1 - up) * 1.5 * Math.sin(T * 4.4);
   // blink every so often
-  const bt = (T + 10) % 2.7;
+  const bt = pmod(T + 10, 2.7);
   const blink = bt < 0.12 ? Math.sin((bt / 0.12) * Math.PI) : 0;
   return { yaw, pitch, anchor, up, blink };
 }
@@ -1925,30 +2022,41 @@ function drawLonghornHead(ctx, T, riderX, thumb) {
   const p = longhornPose(T, riderX, thumb);
   if (p.up < 0.5) {
     // drinking ripples round the muzzle
-    const age = (T * 1.3) % 1;
+    const age = pmod(T * 1.3, 1);
     ctx.strokeStyle = `rgba(235,244,247,${0.7 * (1 - age)})`;
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.ellipse(418, WATER_Y - 2, 5 + age * 16, (5 + age * 16) * 0.3, 0, 0, TAU);
     ctx.stroke();
   }
+  // while drinking the muzzle dips behind the tank's near rim
+  const clipRim = p.up < 0.6;
+  if (clipRim) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, S, S);
+    ctx.moveTo(TANK.x + TANK.rx + 1, TANK.y + 1);
+    ctx.ellipse(TANK.x, TANK.y + 1, TANK.rx + 1, TANK.ry, 0, 0, Math.PI);
+    ctx.lineTo(TANK.x - TANK.rx - 1, TANK.y + TANK.h + TANK.ry);
+    ctx.lineTo(TANK.x + TANK.rx + 1, TANK.y + TANK.h + TANK.ry);
+    ctx.closePath();
+    ctx.clip('evenodd');
+  }
   drawCowHead(ctx, {
     anchor: p.anchor,
     yaw: p.yaw,
     pitch: p.pitch,
-    scale: 1.12,
+    scale: 1.32,
     coat: C.hide,
-    face: null,
+    face: C.hideCream,
+    faceW: [4.6, 2.6],
     muzzle: '#e9c9a2',
     horns: 'long',
-    neckFrom: [
-      { x: 330, y: 586 },
-      { x: 358, y: 634 },
-      { x: 348, y: 640 },
-    ],
+    neck: { W: { x: 328, y: 585 }, B: { x: 357, y: 634 } },
     neckCol: C.hideCream,
     blink: p.blink,
   });
+  if (clipRim) ctx.restore();
 }
 
 function drawTails(ctx, T) {
@@ -2125,6 +2233,7 @@ export function render(kit, slot, scene, params) {
     paintCloud(g, rng, 860, 372, 190, 46, 7);
     paintCloud(g, rng, 380, 452, 150, 26, 6);
     paintPrairie(g, rng);
+    paintFarmstead(g);
     paintRailway(g, rng);
     paintDistantHerd(g, rng);
     paintTowerShadow(g, rng);
