@@ -500,9 +500,9 @@ function synthBass(sr, f, dur, vel, p, rnd) {
     if ((n & 15) === 0) f1.set(160 + (p.funk ? 1400 : 2400) * Math.exp(-t / (p.funk ? 0.06 : 0.1)), 1.6, sr);
     a += da;
     if (a >= 1) a -= 1;
-    s += da * 0.5;
+    s += da * 1.003;
     if (s >= 1) s -= 1;
-    const v = sawBL(a, da) + 0.55 * pulseBL(s, da * 0.5, 0.5);
+    const v = sawBL(a, da) + 0.6 * pulseBL(s, da * 1.003, 0.3);
     out[n] = softClip(f1.lp(v), 1.5) * adsr(t, dur, 0.003, 0.15, 0.72, rel);
   }
   eq(out, sr, [['highpass', 32, 0.7, 0]]);

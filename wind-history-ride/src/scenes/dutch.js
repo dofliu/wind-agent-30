@@ -28,7 +28,7 @@
 // Story (4 bars): a sawyer counts the planks — "EEN · TWEE · DRIE · VIER", one per bar.
 // Bar 3: the old wind-head in the clouds puffs, both mills race, the scoop wheel throws
 // a splash that arcs over the dike road and the spoonbill rides straight through it,
-// leaving a trail of drips; on bar 4 the cows turn to look.
+// leaving a trail of drips; the cows look up as the soaked rider comes past.
 
 const P = 1000;
 const TILE = 125;
@@ -2643,8 +2643,11 @@ function drawSawyer(ctx, T, thumb) {
     const word = COUNT[bar];
     const a = thumb ? 1 : sstep(0.0, 0.2, inBar);
     ctx.globalAlpha = a;
-    const bx = fx + 16;
-    const by = fy - 66;
+    // the banderol floats high above the sawyer (y ≈ 436–456), clear of the rider's
+    // head, crest and pole rotor (top ≈ 467) — at bird height the passing spoonbill hid
+    // "TWEE" for most of bar 2 — and left of the big mill's sail sweep (x > 416)
+    const bx = fx - 22;
+    const by = fy - 180;
     ctx.font = `400 18px ${FONT_ENGRAVING}`;
     const w = ctx.measureText(word).width + 20;
     ctx.fillStyle = GLAZE;
@@ -2660,10 +2663,10 @@ function drawSawyer(ctx, T, thumb) {
     ctx.strokeStyle = C.ink;
     ctx.lineWidth = 1.3;
     ctx.stroke();
-    // tail of the scroll to the speaker's mouth
+    // long ribbon tail of the scroll curling down to the speaker (print-style banderol)
     ctx.beginPath();
-    ctx.moveTo(bx - 8, by + 7);
-    ctx.quadraticCurveTo(bx - 10, by + 22, fx + 2, fy - 38);
+    ctx.moveTo(bx - 6, by + 7);
+    ctx.bezierCurveTo(bx - 26, by + 48, fx + 22, fy - 112, fx + 3, fy - 40);
     ctx.stroke();
     ctx.fillStyle = C.dark;
     ctx.textAlign = 'center';
@@ -2675,8 +2678,10 @@ function drawSawyer(ctx, T, thumb) {
 }
 
 function drawCowsLive(ctx, T, riderX, thumb) {
-  // heads: cow 1 grazes, then both look up at the dripping rider on bar 4
-  const look = thumb ? 0 : sstep(6.0, 6.5, T) * (1 - sstep(9.5, 10.5, T));
+  // heads: cow 1 grazes, then both look up at the dripping rider. The turn starts as
+  // the soaked rider approaches (bar 3, just after the splash): from T ≈ 5.8 the bike
+  // passes in front of the cows, so a turn timed on bar 4 was hidden behind its wheels.
+  const look = thumb ? 0 : sstep(4.9, 5.4, T) * (1 - sstep(9.5, 10.5, T));
   const cows = [
     { x: 800, y: 684, s: 1.1, dir: 1, graze: 1 },
     { x: 905, y: 676, s: 0.95, dir: -1, graze: 0 },

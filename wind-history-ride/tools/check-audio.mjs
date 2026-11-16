@@ -42,6 +42,36 @@ try {
       const stats = m.getLastRenderStats();
       const L = buf.getChannelData(0);
       const R = buf.getChannelData(1);
+      // K-weighting (ITU-R BS.1770 shape) -> ungated LUFS-style loudness per section
+      const biquad = (type, f0, q, db, fs) => {
+        const w = (2 * Math.PI * f0) / fs, cw = Math.cos(w), sw = Math.sin(w), al = sw / (2 * q), A = Math.pow(10, db / 40);
+        let b0, b1, b2, a0, a1, a2;
+        if (type === 'hs') {
+          const s2 = 2 * Math.sqrt(A) * al;
+          b0 = A * (A + 1 + (A - 1) * cw + s2); b1 = -2 * A * (A - 1 + (A + 1) * cw); b2 = A * (A + 1 + (A - 1) * cw - s2);
+          a0 = A + 1 - (A - 1) * cw + s2; a1 = 2 * (A - 1 - (A + 1) * cw); a2 = A + 1 - (A - 1) * cw - s2;
+        } else {
+          b0 = (1 + cw) / 2; b1 = -(1 + cw); b2 = (1 + cw) / 2; a0 = 1 + al; a1 = -2 * cw; a2 = 1 - al;
+        }
+        return [b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0];
+      };
+      const kw = (ch) => {
+        const out = new Float32Array(ch.length);
+        const st = [biquad('hs', 1681.97, 0.7072, 3.99984, buf.sampleRate), biquad('hp', 38.1355, 0.5003, 0, buf.sampleRate)];
+        out.set(ch);
+        for (const [b0, b1, b2, a1, a2] of st) {
+          let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+          for (let i = 0; i < out.length; i++) {
+            const x = out[i];
+            const y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+            x2 = x1; x1 = x; y2 = y1; y1 = y;
+            out[i] = y;
+          }
+        }
+        return out;
+      };
+      const KL = kw(L);
+      const KR = kw(R);
       const measure = (a, b) => {
         const i0 = Math.max(0, Math.round(a * buf.sampleRate));
         const i1 = Math.min(buf.length, Math.round(b * buf.sampleRate));
@@ -49,6 +79,8 @@ try {
         let ss = 0;
         let nan = 0;
         let clip = 0;
+        let ks = 0;
+        for (let i = i0; i < i1; i++) ks += KL[i] * KL[i] + KR[i] * KR[i];
         for (let i = i0; i < i1; i++) {
           const l = L[i];
           const r = R[i];
@@ -63,7 +95,7 @@ try {
           if (al >= 0.999 || ar >= 0.999) clip++;
           ss += l * l + r * r;
         }
-        return { peak: pk, rms: Math.sqrt(ss / Math.max(1, 2 * (i1 - i0))), nan, clip };
+        return { peak: pk, rms: Math.sqrt(ss / Math.max(1, 2 * (i1 - i0))), lufs: -0.691 + 10 * Math.log10(ks / Math.max(1, i1 - i0) + 1e-12), nan, clip };
       };
       const sections = [{ id: 'intro', a: 0, b: 6 }];
       for (const s of window.__WIND_SCENES__) sections.push({ id: s.id, num: s.num, a: s.t0, b: s.t0 + 8 });
@@ -87,13 +119,17 @@ try {
   console.log(`render time: ${(res.ms / 1000).toFixed(2)} s`);
   console.log(`overall: peak ${res.all.peak.toFixed(4)} (${db(res.all.peak)} dBFS)  RMS ${res.all.rms.toFixed(4)} (${db(res.all.rms)} dBFS)  clipped samples ${res.all.clip}  NaN ${res.all.nan}`);
   console.log('');
-  console.log('section        window (s)       RMS      RMS dB   peak    peak dB');
+  console.log('section        window (s)       RMS      RMS dB   peak    peak dB   K-loud (LUFS, ungated)');
   const eraRms = [];
+  const eraK = [];
   for (const r of res.rows) {
     const name = (r.num ? `${String(r.num).padStart(2, '0')} ${r.id}` : r.id).padEnd(14);
     const win = `${r.a.toFixed(1).padStart(6)}–${r.b.toFixed(1).padEnd(6)}`;
-    console.log(`${name} ${win}   ${r.rms.toFixed(4)}  ${db(r.rms)}   ${r.peak.toFixed(3)}  ${db(r.peak)}`);
-    if (r.num) eraRms.push(20 * Math.log10(Math.max(r.rms, 1e-9)));
+    console.log(`${name} ${win}   ${r.rms.toFixed(4)}  ${db(r.rms)}   ${r.peak.toFixed(3)}  ${db(r.peak)}   ${r.lufs.toFixed(1).padStart(6)}`);
+    if (r.num) {
+      eraRms.push(20 * Math.log10(Math.max(r.rms, 1e-9)));
+      eraK.push(r.lufs);
+    }
     if (r.rms < 0.005) {
       console.log(`  !! ${r.id} is (near) silent`);
       failed = true;
@@ -106,6 +142,7 @@ try {
   const spread = Math.max(...eraRms) - Math.min(...eraRms);
   console.log('');
   console.log(`era RMS spread: ${spread.toFixed(2)} dB (min ${Math.min(...eraRms).toFixed(1)}, max ${Math.max(...eraRms).toFixed(1)} dBFS)`);
+  console.log(`era K-weighted loudness spread: ${(Math.max(...eraK) - Math.min(...eraK)).toFixed(2)} LU (min ${Math.min(...eraK).toFixed(1)}, max ${Math.max(...eraK).toFixed(1)})`);
   if (res.stats) {
     if (res.stats.phase) console.log('phases (ms): ' + Object.entries(res.stats.phase).map(([k, v]) => `${k} ${v.toFixed(0)}`).join(', '));
     console.log(`limiter active on ${(100 * res.stats.limitedFraction).toFixed(2)}% of samples, pre-limit peak ${res.stats.prePeak.toFixed(3)}, final norm gain ${res.stats.normGain.toFixed(3)}`);

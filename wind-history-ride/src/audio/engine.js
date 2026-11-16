@@ -31,7 +31,7 @@ import { renderVoice, voiceKey, clearVoiceCache } from './instruments.js';
 import { WindGen } from './foley.js';
 import { mulberry32, eq, kRms, peakOf, dbToGain, clamp } from './dsp.js';
 
-const MUSIC_TARGET = 0.1; // K-weighted RMS each era stem is matched to (≈ -20 dB)
+const MUSIC_TARGET = 0.089; // loudness (√(K-RMS·RMS)) each era stem is matched to (≈ -20 dB)
 const WIND_LEVEL = 0.36; // wind K-RMS relative to MUSIC_TARGET at windiness 1
 const CEILING = dbToGain(-1); // final sample peak: -1 dBFS
 const XFADE = 0.5; // one beat at 120 BPM
@@ -472,7 +472,11 @@ export async function renderSoundtrack(sampleRate = 48000, opts = {}) {
     }
     const a = Math.round((sec.measure[0] - sec.start) * sr);
     const b = Math.round((sec.measure[1] - sec.start) * sr);
-    const rms = kRms([DL, DR], sr, a, b);
+    // loudness = geometric mean of K-weighted (perceptual) and plain RMS, so eras match on both meters
+    const rk = kRms([DL, DR], sr, a, b);
+    let ss = 0;
+    for (let i = a; i < b; i++) ss += DL[i] * DL[i] + DR[i] * DR[i];
+    const rms = Math.sqrt(rk * Math.sqrt(ss / Math.max(1, 2 * (b - a))));
     const want = MUSIC_TARGET * dbToGain(sec.loudDb || 0);
     const g = rms > 1e-6 ? clamp(want / rms, 0.05, 30) : 1;
     const s0 = Math.round(sec.start * sr);

@@ -5,11 +5,14 @@
 // vermilion diaper ground, bar-and-ivy borders, and drolleries in the bas-de-page.
 //
 // Machine (historically): a wooden box body (the "buck") with a pitched roof, balanced on
-// ONE massive upright post. The post stands on a trestle: two crossed horizontal
-// crosstrees on stone piers and four diagonal quarterbars. The WHOLE buck turns on the
-// post to face the wind, pushed round by a long TAILPOLE at the back (the ladder to the
-// rear door rides with it). Four common sails — wooden lattice frames spread with cloth —
-// sit on the windshaft at the front. Earliest secure record: Weedley, Yorkshire, 1185.
+// ONE massive upright oak post. For 1185 it is drawn as an early "sunk" post mill: the
+// foot of the post and its crosstrees are buried in a low turf mound (the open trestle
+// on piers is a later form). The WHOLE buck turns on the post to face the wind, pushed
+// round by a long TAILPOLE at the back (the ladder to the rear door rides with it). Four
+// common sails — wooden lattice frames spread with cloth — sit on the near-horizontal
+// windshaft at the front (upwind) and turn anticlockwise seen from the front.
+// One of the earliest securely dated records: Weedley, Yorkshire, 1185. The Latin on
+// the page is a period-style pastiche, not a quotation of any record.
 //
 // The rider rides along the bottom bar-border of the miniature, like one more marginal
 // creature.
@@ -1013,29 +1016,6 @@ function paintLandscape(g, rng) {
     g.lineTo(x + 4, y - 10);
     g.stroke();
   }
-  // stone piers of the trestle (fixed to the ground)
-  for (let i = 0; i < 4; i++) {
-    const a = (i * Math.PI) / 2 + Math.PI / 4;
-    const X = Math.cos(a) * 78;
-    const Z = Math.sin(a) * 78;
-    const sx = MX + X;
-    const sy = MY + Z * ES;
-    g.beginPath();
-    g.rect(sx - 9, sy - 2, 18, 13);
-    fillInk(g, C.stone, 1.2);
-    g.strokeStyle = C.stoneDark;
-    g.lineWidth = 0.8;
-    g.beginPath();
-    g.moveTo(sx - 9, sy + 4.5);
-    g.lineTo(sx + 9, sy + 4.5);
-    g.moveTo(sx, sy - 2);
-    g.lineTo(sx, sy + 4.5);
-    g.moveTo(sx - 4, sy + 4.5);
-    g.lineTo(sx - 4, sy + 11);
-    g.moveTo(sx + 5, sy + 4.5);
-    g.lineTo(sx + 5, sy + 11);
-    g.stroke();
-  }
   g.restore();
 }
 
@@ -1470,22 +1450,73 @@ function drawSails(ctx, M, theta, front) {
   ctx.fill();
 }
 
-function drawTrestle(ctx, M, which) {
-  // crosstrees and quarterbars are fixed (they do not turn); `which`: 'back' | 'front'
-  for (let i = 0; i < 4; i++) {
-    const a = (i * Math.PI) / 2 + Math.PI / 4;
-    const cx = Math.cos(a);
-    const cz = Math.sin(a);
-    const isFront = cz > 0;
-    if ((which === 'front') !== isFront) continue;
-    const end = { x: MX + cx * 80, y: MY + cz * 80 * ES - 2 };
-    const mid = { x: MX, y: MY };
-    beam(ctx, mid, end, 6, C.woodDark);
-    // quarterbar: from the crosstree end up to the post
-    const qa = { x: MX + cx * 72, y: MY + cz * 72 * ES - 8 };
-    const qb = { x: MX + cx * 6, y: MY - 74 * EC + cz * 6 * ES };
-    beam(ctx, qa, qb, 5.2, C.wood);
+// For 1185 the mill is an early "sunk" post mill: the foot of the main post and its
+// crosstrees are buried in a low turf mound, so no open trestle (and no piers) show.
+const MOUND = { R: 120, H: 50 };
+function moundPath(g) {
+  const { R, H } = MOUND;
+  g.beginPath();
+  for (let i = 0; i <= 48; i++) {
+    const u = -1 + (2 * i) / 48;
+    const x = MX + u * R;
+    const y = MY - H * Math.pow(Math.max(0, 1 - u * u), 0.85);
+    if (i === 0) g.moveTo(x, y);
+    else g.lineTo(x, y);
   }
+  for (let i = 48; i >= 0; i--) {
+    const u = -1 + (2 * i) / 48;
+    g.lineTo(MX + u * R, MY + R * ES * Math.sqrt(Math.max(0, 1 - u * u)));
+  }
+  g.closePath();
+}
+
+function paintMound(g, rng, ox, oy) {
+  g.save();
+  g.translate(-ox, -oy);
+  moundPath(g);
+  g.fillStyle = C.greenLight;
+  g.fill();
+  g.save();
+  g.clip();
+  scallops(g, MX - MOUND.R - 10, MX + MOUND.R + 10, MY - MOUND.H - 6, MY + MOUND.R * ES + 4, 13, 'rgba(29,70,38,0.42)', rng);
+  // the front of the mound in shade, where it meets the hill
+  g.fillStyle = 'rgba(29,70,38,0.18)';
+  g.beginPath();
+  g.ellipse(MX, MY + 8, MOUND.R, MOUND.R * ES + 4, 0, 0, Math.PI);
+  g.fill();
+  g.restore();
+  // ink only along the crest (the foot melts into the hill, as on the page)
+  const { R, H } = MOUND;
+  g.beginPath();
+  for (let i = 0; i <= 48; i++) {
+    const u = -1 + (2 * i) / 48;
+    const x = MX + u * R;
+    const y = MY - H * Math.pow(Math.max(0, 1 - u * u), 0.85);
+    if (i === 0) g.moveTo(x, y);
+    else g.lineTo(x, y);
+  }
+  inkStroke(g, 1.6);
+  for (let i = 0; i < 9; i++) {
+    const u = -0.8 + 1.6 * rng();
+    const v = rng();
+    const x = MX + u * R;
+    const yTop = MY - H * Math.pow(1 - u * u, 0.85);
+    const y = lerp(yTop + 10, MY + R * ES * Math.sqrt(1 - u * u) - 4, v);
+    flower(g, x, y, 2, i % 2 ? C.white : '#f2d27a', C.verm);
+  }
+  g.restore();
+}
+
+function drawMound(ctx) {
+  const ox = MX - MOUND.R - 4;
+  const oy = MY - MOUND.H - 8;
+  const spr = K.bake('postmill_mound', MOUND.R * 2 + 8, MOUND.H + MOUND.R * ES + 18, (g, rng) => paintMound(g, rng, ox, oy));
+  ctx.drawImage(spr, ox, oy);
+  // where the oak post goes into the turf
+  ctx.fillStyle = 'rgba(29,70,38,0.55)';
+  ctx.beginPath();
+  ctx.ellipse(MX, MY - MOUND.H + 1, 13, 3.4, 0, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function drawPost(ctx) {
@@ -2847,10 +2878,9 @@ export function render(kit, slot, scene, params) {
   const tailZ = -(BUCK.D + TAIL.reach - BUCK.D) * M.fz;
   const items = [];
   items.push({ z: (BUCK.D + 17) * M.fz - (sailsFront ? 0 : 400), draw: () => drawSails(ctx, M, theta, sailsFront) });
-  items.push({ z: -60, draw: () => drawTrestle(ctx, M, 'back') });
   items.push({ z: -1, draw: () => drawPost(ctx) });
+  items.push({ z: -0.5, draw: () => drawMound(ctx) });
   items.push({ z: 0, draw: () => drawBuck(ctx, M) });
-  items.push({ z: 60, draw: () => drawTrestle(ctx, M, 'front') });
   items.push({ z: -(BUCK.D + 40) * M.fz + 0.5, draw: () => drawLadder(ctx, M) });
   items.push({
     z: tailZ + 1,

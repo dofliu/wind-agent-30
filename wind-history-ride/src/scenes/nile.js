@@ -1,29 +1,37 @@
 // src/scenes/nile.js
-// 《乘風騎行》 #01 尼羅河的帆 · c. 3200 BCE — Sails on the Nile.
+// 《乘風騎行》 #01 尼羅河上的帆 · c. 3300–3100 BCE — Sails on the Nile.
 //
 // Medium: ancient Egyptian tomb painting on mud plaster. Flat mineral colours
 // (yellow & red ochre, Egyptian blue, malachite green, carbon black, gypsum white)
 // on a cream plaster ground; strict profile figures with a frontal eye; horizontal
-// registers separated by ruled bands; hieroglyph columns; a kheker frieze and a
-// "granite" dado; cracks and flaked losses baked into the plaster.
+// registers separated by ruled bands; a kheker frieze and a "granite" dado; cracks
+// and flaked losses baked into the plaster.
+//
+// The subject is LATE PREDYNASTIC (c. 3300–3100 BCE), so the art carries no writing
+// at all (hieroglyphic inscriptions are later) and no dynastic emblems (no winged sun
+// disk, no wedjat eye): only a plain sun disk, and the Decorated-Ware repertoire —
+// zig-zag water, papyrus, low desert hills, ibex, flamingos.
 //
 // Registers (top -> bottom)
-//   kheker frieze · block border · sky sign (pt) · winged sun disk
-//   I   The river going SOUTH: a papyriform wooden boat under one tall, narrow
-//       square sail on a bipod (A-frame) mast with yard + boom, many backstays and
-//       lifts, two steering oars at the stern, crew. The prevailing north wind
-//       pushes it upstream; hieroglyphs: "ḫnti m ṯȝw nfr" (sailing south with a
-//       good wind) — the sail sign P5 is the word-sign for wind / breath.
+//   kheker frieze · block border · star band · plain sun disk
+//   I   The river going SOUTH: a papyriform wooden boat with ONE straight pole mast
+//       stepped well forward near the bow, carrying one roughly square sail between
+//       a yard and a lower boom; almost no rigging (a halyard and one sheet); two
+//       steering oars at the stern; a small cabin with the owner; crew. The
+//       prevailing north wind fills the sail from behind and pushes it upstream
+//       while the current (zig-zags) runs north. Right: the desert edge with an
+//       ibex, flamingos at the water.
 //   II  The rider's bank (ground line y = 700): papyrus thickets and a sacred ibis
 //       (the spoonbill's cousin, family Threskiornithidae) who does a double take.
-//   III Threshing floor (winnowing — the other everyday use of the wind) and the
-//       river going NORTH: mast lowered, crew rowing with the current ("ḫdi").
+//   III Threshing floor (winnowing — the other everyday use of the wind) under the
+//       desert hills, and the river going NORTH: mast lowered, crew rowing with the
+//       current.
 //   dado (red / yellow / black lines + speckled "granite")
 //
 // Gag (bar 3): the ibis glances back at the rider, goes back to foraging, then
-// snaps round with a hop and a wide eye; on bar 4 it turns and raises its wings in
-// the Egyptian gesture of adoration. A shared gust function makes the big sail,
-// the rider's little sail, the papyrus and the winnowed chaff billow in sync.
+// snaps round with a hop and a wide eye (shaking a few feathers loose); on bar 4 it
+// turns and raises its wings. A shared gust function makes the big sail, the
+// rider's little sail, the papyrus and the winnowed chaff billow in sync.
 
 const P = 1000;
 const TAU = Math.PI * 2;
@@ -394,351 +402,6 @@ function drawMan(g, o) {
 
   const toG = (h) => ({ x: o.x + dir * u * h.x, y: o.y - u * h.y });
   return { b: toG(armOut[0]), f: toG(armOut[1]), u };
-}
-
-// -----------------------------------------------------------------------------
-// Hieroglyphs (simplified Gardiner signs), drawn in a 32-unit box centred on 0.
-// -----------------------------------------------------------------------------
-function glyph(g, name, cx, cy, s, dir = 1, col = C.blue) {
-  g.save();
-  g.translate(cx, cy);
-  g.scale(dir * s, s);
-  g.lineJoin = 'round';
-  g.lineCap = 'round';
-  const lw = 1.1 / s;
-  const fi = () => fillInk(g, col, lw);
-  switch (name) {
-    case 'Aa1': {
-      // placenta / sieve (ḫ)
-      g.beginPath();
-      g.arc(0, 0, 10, 0, TAU);
-      fi();
-      g.save();
-      g.clip();
-      g.strokeStyle = C.ink;
-      g.lineWidth = 1.3 / s;
-      g.beginPath();
-      for (let k = -2; k <= 2; k++) {
-        g.moveTo(-11, k * 3.8);
-        g.lineTo(11, k * 3.8);
-      }
-      g.stroke();
-      g.restore();
-      break;
-    }
-    case 'N35': {
-      // water ripple (n)
-      g.beginPath();
-      for (let k = 0; k <= 10; k++) {
-        const x = -16 + k * 3.2;
-        const y = k % 2 ? -2.6 : 2.6;
-        if (k) g.lineTo(x, y);
-        else g.moveTo(x, y);
-      }
-      g.strokeStyle = C.ink;
-      g.lineWidth = 4.4;
-      g.stroke();
-      g.strokeStyle = col;
-      g.lineWidth = 2.6;
-      g.stroke();
-      break;
-    }
-    case 'X1': {
-      // bread loaf (t)
-      g.beginPath();
-      g.moveTo(-9, 4);
-      g.bezierCurveTo(-8, -6, 8, -6, 9, 4);
-      g.closePath();
-      fi();
-      break;
-    }
-    case 'G17': {
-      // owl (m) — body in profile, face frontal
-      g.beginPath();
-      g.moveTo(-6, -6);
-      g.bezierCurveTo(-11, 2, -9, 12, -3, 15);
-      g.lineTo(5, 15);
-      g.bezierCurveTo(9, 8, 9, -2, 6, -6);
-      g.closePath();
-      fi();
-      g.beginPath();
-      g.moveTo(-7, -10);
-      g.lineTo(-8, -17);
-      g.lineTo(-3, -14);
-      g.lineTo(3, -14);
-      g.lineTo(8, -17);
-      g.lineTo(7, -10);
-      g.bezierCurveTo(7, -4, -7, -4, -7, -10);
-      g.closePath();
-      fi();
-      g.fillStyle = C.white;
-      for (const ex of [-3.2, 3.2]) {
-        g.beginPath();
-        g.arc(ex, -10.5, 2.2, 0, TAU);
-        g.fill();
-        g.strokeStyle = C.ink;
-        g.lineWidth = lw;
-        g.stroke();
-      }
-      g.fillStyle = C.ink;
-      g.beginPath();
-      g.arc(-3.2, -10.5, 0.9, 0, TAU);
-      g.arc(3.2, -10.5, 0.9, 0, TAU);
-      g.fill();
-      g.strokeStyle = C.ink;
-      g.lineWidth = lw;
-      g.beginPath();
-      g.moveTo(-1, 15);
-      g.lineTo(-2, 18);
-      g.moveTo(3, 15);
-      g.lineTo(3, 18);
-      g.moveTo(-5, 2);
-      g.quadraticCurveTo(-1, 8, 1, 14);
-      g.stroke();
-      break;
-    }
-    case 'V13': {
-      // tethering rope (ṯ)
-      g.beginPath();
-      g.moveTo(-15, 2);
-      g.quadraticCurveTo(-15, -3, -11, -2);
-      g.lineTo(7, -2);
-      g.strokeStyle = C.ink;
-      g.lineWidth = 4.2;
-      g.stroke();
-      g.strokeStyle = col;
-      g.lineWidth = 2.4;
-      g.stroke();
-      g.beginPath();
-      g.ellipse(11, -1, 4.5, 3.6, 0, 0, TAU);
-      g.strokeStyle = C.ink;
-      g.lineWidth = 4.2;
-      g.stroke();
-      g.strokeStyle = col;
-      g.lineWidth = 2.4;
-      g.stroke();
-      break;
-    }
-    case 'G1': {
-      // Egyptian vulture (ȝ)
-      g.beginPath();
-      g.moveTo(9, -13);
-      g.quadraticCurveTo(13, -14, 14, -11);
-      g.lineTo(11.5, -10);
-      g.quadraticCurveTo(9, -8, 8, -5);
-      g.bezierCurveTo(9, 2, 6, 7, 2, 9);
-      g.lineTo(-12, 14);
-      g.lineTo(-10, 10);
-      g.bezierCurveTo(-8, 0, -4, -7, 4, -8);
-      g.quadraticCurveTo(5, -12, 9, -13);
-      g.closePath();
-      fi();
-      g.strokeStyle = C.ink;
-      g.lineWidth = lw;
-      g.beginPath();
-      g.moveTo(0, 9);
-      g.lineTo(-1, 16);
-      g.lineTo(2, 16);
-      g.moveTo(4, 8);
-      g.lineTo(4, 16);
-      g.lineTo(7, 16);
-      g.moveTo(-6, 0);
-      g.quadraticCurveTo(-2, 6, 2, 8);
-      g.stroke();
-      g.fillStyle = C.white;
-      g.beginPath();
-      g.arc(10, -11, 1.1, 0, TAU);
-      g.fill();
-      break;
-    }
-    case 'G43': {
-      // quail chick (w)
-      g.beginPath();
-      g.arc(-1, 1, 8.5, 0, TAU);
-      fi();
-      g.beginPath();
-      g.arc(6, -8, 4.8, 0, TAU);
-      fi();
-      g.beginPath();
-      g.moveTo(10, -9);
-      g.lineTo(13, -7.5);
-      g.lineTo(10, -6.5);
-      fi();
-      g.strokeStyle = C.ink;
-      g.lineWidth = lw;
-      g.beginPath();
-      g.moveTo(-4, -2);
-      g.quadraticCurveTo(0, 4, -6, 6);
-      g.moveTo(-2, 9);
-      g.lineTo(-3, 15);
-      g.lineTo(0, 15);
-      g.moveTo(2, 9);
-      g.lineTo(3, 15);
-      g.lineTo(6, 15);
-      g.stroke();
-      g.fillStyle = C.ink;
-      g.beginPath();
-      g.arc(7, -9, 0.9, 0, TAU);
-      g.fill();
-      break;
-    }
-    case 'P5': {
-      // sail on a mast — word-sign for "wind, breath"
-      g.beginPath();
-      g.moveTo(-6, 16);
-      g.lineTo(-6, -16);
-      g.strokeStyle = C.ink;
-      g.lineWidth = 3.6;
-      g.stroke();
-      g.strokeStyle = col;
-      g.lineWidth = 1.8;
-      g.stroke();
-      g.beginPath();
-      g.moveTo(-6, -13);
-      g.lineTo(6, -13);
-      g.quadraticCurveTo(14, 0, 6, 12);
-      g.lineTo(-6, 12);
-      g.closePath();
-      fi();
-      break;
-    }
-    case 'F35': {
-      // heart and windpipe (nfr, "good")
-      g.beginPath();
-      g.ellipse(0, 8, 6.5, 8, 0, 0, TAU);
-      fi();
-      g.beginPath();
-      g.moveTo(0, 0);
-      g.lineTo(0, -16);
-      g.moveTo(-4.5, -11);
-      g.lineTo(4.5, -11);
-      g.moveTo(-3.5, -6.5);
-      g.lineTo(3.5, -6.5);
-      g.strokeStyle = C.ink;
-      g.lineWidth = 3.8;
-      g.stroke();
-      g.strokeStyle = col;
-      g.lineWidth = 2.0;
-      g.stroke();
-      break;
-    }
-    case 'D46': {
-      // hand (d)
-      g.beginPath();
-      g.moveTo(-14, 1);
-      g.lineTo(-14, 5);
-      g.lineTo(12, 5);
-      g.quadraticCurveTo(15, 4, 12, 1.6);
-      g.lineTo(-2, 1.2);
-      g.lineTo(2, -1.5);
-      g.quadraticCurveTo(1, -3.5, -2, -2.4);
-      g.lineTo(-7, 0.8);
-      g.closePath();
-      fi();
-      break;
-    }
-    case 'P1':
-    case 'P2': {
-      // boat on water (P1) / ship under sail (P2)
-      g.beginPath();
-      g.moveTo(-17, -6);
-      g.quadraticCurveTo(-14, 6, -6, 8);
-      g.lineTo(8, 8);
-      g.quadraticCurveTo(15, 6, 17, -3);
-      g.quadraticCurveTo(10, 3, 0, 3);
-      g.quadraticCurveTo(-10, 3, -17, -6);
-      g.closePath();
-      fi();
-      g.strokeStyle = C.ink;
-      g.lineWidth = lw * 1.4;
-      g.beginPath();
-      g.moveTo(-12, -2);
-      g.lineTo(-17, 11);
-      g.stroke();
-      if (name === 'P2') {
-        g.beginPath();
-        g.moveTo(1, 3);
-        g.lineTo(1, -20);
-        g.stroke();
-        g.beginPath();
-        g.moveTo(-6, -18);
-        g.lineTo(8, -18);
-        g.quadraticCurveTo(12, -10, 8, -3);
-        g.lineTo(-6, -3);
-        g.quadraticCurveTo(-3, -10, -6, -18);
-        g.closePath();
-        fi();
-      } else {
-        g.beginPath();
-        g.rect(-5, -4, 9, 6);
-        fi();
-      }
-      break;
-    }
-    case 'Q3': {
-      // reed stool (p)
-      g.beginPath();
-      g.rect(-8, -8, 16, 16);
-      fi();
-      g.strokeStyle = C.ink;
-      g.lineWidth = lw * 0.8;
-      g.beginPath();
-      for (let k = -1; k <= 1; k++) {
-        g.moveTo(k * 4, -6);
-        g.lineTo(k * 4, 6);
-      }
-      g.stroke();
-      break;
-    }
-    case 'D21': {
-      // mouth (r)
-      g.beginPath();
-      g.moveTo(-14, 0);
-      g.quadraticCurveTo(0, -8, 14, 0);
-      g.quadraticCurveTo(0, 8, -14, 0);
-      g.closePath();
-      fi();
-      break;
-    }
-    case 'D6': {
-      // eye with painted upper lid — determinative of seeing
-      g.beginPath();
-      g.moveTo(-14, 1);
-      g.quadraticCurveTo(0, -9, 13, 0);
-      g.quadraticCurveTo(0, 8, -14, 1);
-      g.closePath();
-      g.fillStyle = C.white;
-      g.fill();
-      g.strokeStyle = C.ink;
-      g.lineWidth = lw;
-      g.stroke();
-      g.beginPath();
-      g.arc(0, -0.5, 4.2, 0, TAU);
-      fi();
-      g.beginPath();
-      g.moveTo(-16, 0);
-      g.quadraticCurveTo(0, -11, 15, -1);
-      g.strokeStyle = C.ink;
-      g.lineWidth = 3.4;
-      g.stroke();
-      g.strokeStyle = col;
-      g.lineWidth = 1.8;
-      g.stroke();
-      g.beginPath();
-      g.moveTo(-13, -9);
-      g.quadraticCurveTo(0, -17, 14, -9);
-      g.strokeStyle = C.ink;
-      g.lineWidth = 3.2;
-      g.stroke();
-      g.strokeStyle = col;
-      g.lineWidth = 1.6;
-      g.stroke();
-      break;
-    }
-    default:
-      break;
-  }
-  g.restore();
 }
 
 // -----------------------------------------------------------------------------
@@ -1397,18 +1060,20 @@ function drawSail(g, s, b, lwScale = 1, seams = 6) {
 // y up negative, waterline 0.
 // -----------------------------------------------------------------------------
 const BOAT = {
-  apex: { x: 300, y: -276 },
-  legs: [{ x: 272, y: -25 }, { x: 328, y: -25 }],
-  yard: { x0: 242, x1: 358, y: -262 },
-  boomY: -100,
+  // ONE straight pole mast stepped well forward, close to the bow (as on the
+  // Predynastic redware jar BM 35324 and the Naqada rock drawings) — not amidships.
+  mast: { x: 410, foot: -30, top: -270 },
+  // one roughly square sail between a yard and a lower boom
+  yard: { x0: 348, x1: 472, y: -258 },
+  boomY: -128,
   crew: {
     helm1: { x: 52, y: -33, H: 70 },
     helm2: { x: 84, y: -29, H: 70 },
-    owner: { x: 130, y: -26, H: 98 },
-    sheet1: { x: 198, y: -25, H: 70 },
-    sheet2: { x: 230, y: -25, H: 70 },
-    mast: { x: 366, y: -25, H: 70 },
-    pilot: { x: 432, y: -33, H: 70 },
+    owner: { x: 158, y: -26, H: 98 },
+    sheet1: { x: 236, y: -25, H: 70 },
+    sheet2: { x: 268, y: -25, H: 70 },
+    mast: { x: 376, y: -28, H: 70 },
+    pilot: { x: 447, y: -36, H: 70 },
   },
 };
 const SPR_OX = 70;
@@ -1497,32 +1162,6 @@ function drawHull(g, L) {
   };
   umbel(11 * k, -112 * k, 0.35, 20 * k);
   umbel(486 * k, -60 * k, 0.75, 15 * k);
-  // the protective eye at the bow
-  const ex = 446 * k;
-  const ey = -26 * k;
-  g.save();
-  g.translate(ex, ey);
-  g.scale(k, k);
-  g.beginPath();
-  g.moveTo(-9, 0);
-  g.quadraticCurveTo(0, -6, 9, -1);
-  g.quadraticCurveTo(0, 4.5, -9, 0);
-  g.closePath();
-  fillInk(g, C.white, 1.1);
-  g.fillStyle = C.ink;
-  g.beginPath();
-  g.arc(1.5, -0.5, 2.4, 0, TAU);
-  g.fill();
-  g.strokeStyle = C.ink;
-  g.lineWidth = 1.6;
-  g.beginPath();
-  g.moveTo(-10, -6);
-  g.quadraticCurveTo(0, -11, 10, -6);
-  g.moveTo(-2, 3);
-  g.lineTo(-4, 11);
-  g.quadraticCurveTo(-1, 14, 2, 11);
-  g.stroke();
-  g.restore();
 }
 
 function bakeBoat(kit) {
@@ -1531,47 +1170,19 @@ function bakeBoat(kit) {
     g.lineJoin = 'round';
     g.lineCap = 'round';
     const cr = BOAT.crew;
-    // backstays (masthead to the after deck) behind everything
-    g.strokeStyle = 'rgba(28,24,21,0.85)';
-    g.lineWidth = 1;
+    // the single pole mast (no stays: the early images show little or no rigging)
+    const mt = BOAT.mast;
     g.beginPath();
-    for (const x of [40, 72, 104, 150, 186]) {
-      g.moveTo(BOAT.apex.x - 2, BOAT.apex.y + 2);
-      g.lineTo(x, x < 60 ? -40 : -27);
-    }
-    // forestay to the bow
-    g.moveTo(BOAT.apex.x + 2, BOAT.apex.y + 2);
-    g.lineTo(458, -44);
-    g.stroke();
-
-    // bipod mast with rungs
-    const [l0, l1] = BOAT.legs;
-    const ap = BOAT.apex;
-    const leg = (a) => {
-      g.beginPath();
-      g.moveTo(a.x, a.y);
-      g.lineTo(ap.x, ap.y);
-      g.strokeStyle = C.ink;
-      g.lineWidth = 6.4;
-      g.stroke();
-      g.strokeStyle = C.wood;
-      g.lineWidth = 3.8;
-      g.stroke();
-    };
-    leg(l0);
-    leg(l1);
+    g.moveTo(mt.x, mt.foot);
+    g.lineTo(mt.x, mt.top);
     g.strokeStyle = C.ink;
-    g.lineWidth = 2.2;
-    g.beginPath();
-    for (let i = 1; i < 9; i++) {
-      const f = i / 9.4;
-      const y = lerp(l0.y, ap.y, f);
-      g.moveTo(lerp(l0.x, ap.x, f), y);
-      g.lineTo(lerp(l1.x, ap.x, f), y);
-    }
+    g.lineWidth = 7;
+    g.stroke();
+    g.strokeStyle = C.wood;
+    g.lineWidth = 4.2;
     g.stroke();
     g.beginPath();
-    g.rect(ap.x - 5, ap.y - 8, 10, 9);
+    g.rect(mt.x - 5, mt.top - 8, 10, 9);
     fillInk(g, C.red, 1.2);
 
     // canopy (kiosk) of the owner
@@ -1703,7 +1314,7 @@ function bakeRowboat(kit) {
     g.closePath();
     fillInk(g, C.red, 1.1);
     g.restore();
-    // the lowered bipod mast rests on a tall forked crutch aft and a post forward,
+    // the lowered pole mast rests on a tall forked crutch aft and a post forward,
     // with the sail furled between yard and boom and lashed to it
     for (const [x, h] of [[46, -124], [324, -74]]) {
       g.beginPath();
@@ -1756,7 +1367,244 @@ function bakeRowboat(kit) {
 }
 
 // -----------------------------------------------------------------------------
-// Static wall: plaster, frieze, borders, sky, sun disk, inscriptions, dado.
+// Decorated-Ware motifs (Naqada II): desert hills, ibex, flamingos. No script.
+// -----------------------------------------------------------------------------
+function sandLine(g, x0, x1, y) {
+  g.beginPath();
+  g.moveTo(x0, y - 2);
+  for (let x = x0; x <= x1; x += 6) g.lineTo(x, y - 2 - 1.2 * Math.sin(x * 0.21));
+  g.lineTo(x1, y + 4);
+  g.lineTo(x0, y + 4);
+  g.closePath();
+  fillInk(g, C.yellowLt, 1.1);
+  g.fillStyle = C.red;
+  for (let x = x0 + 5; x < x1 - 3; x += 9) g.fillRect(x, y + 0.5, 1.6, 1.6);
+}
+
+/** Rounded desert ridge (NOT pointed: pointed triangles would read as pyramids). */
+function ridgeTop(x, humps, by) {
+  let h = 0;
+  for (const hp of humps) {
+    const u = (x - hp.x) / (hp.w / 2);
+    if (u > -1 && u < 1) h = Math.max(h, hp.h * Math.pow(1 - u * u, 1.35));
+  }
+  return by - h;
+}
+
+function ridgePath(g, x0, x1, humps, by, dy = 0) {
+  g.beginPath();
+  g.moveTo(x0, by + dy);
+  for (let x = x0; x <= x1; x += 2) g.lineTo(x, ridgeTop(x, humps, by) + dy);
+  g.lineTo(x1, by + dy);
+}
+
+function drawRidge(g, x0, x1, humps, by) {
+  ridgePath(g, x0, x1, humps, by);
+  g.closePath();
+  g.fillStyle = C.yellowLt;
+  g.fill();
+  g.save();
+  g.clip();
+  // contour bands following the crest, and red-ochre speckle (rocky desert)
+  g.strokeStyle = C.red;
+  g.lineWidth = 1.4;
+  for (let dy = 7; dy < 60; dy += 7) {
+    ridgePath(g, x0, x1, humps, by, dy);
+    g.stroke();
+  }
+  g.restore();
+  ridgePath(g, x0, x1, humps, by);
+  g.strokeStyle = C.ink;
+  g.lineWidth = 1.3;
+  g.stroke();
+}
+
+/** Nubian ibex in profile, feet on y; dir -1 faces left. */
+function drawIbex(g, x, y, s, dir) {
+  g.save();
+  g.translate(x, y);
+  g.scale(dir * s, s);
+  g.lineJoin = 'round';
+  g.lineCap = 'round';
+  // far legs (darker), then near legs
+  const leg = (pts, col) => {
+    g.beginPath();
+    g.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]);
+    g.strokeStyle = C.ink;
+    g.lineWidth = 4.6;
+    g.stroke();
+    g.strokeStyle = col;
+    g.lineWidth = 2.6;
+    g.stroke();
+  };
+  leg([[-14, -30], [-19, -15], [-15, 0]], C.mud);
+  leg([[18, -30], [19, -14], [21, 0]], C.mud);
+  // horns: long, ridged, sweeping back
+  g.beginPath();
+  g.moveTo(30, -60);
+  g.bezierCurveTo(28, -84, 10, -96, -2, -84);
+  g.strokeStyle = C.ink;
+  g.lineWidth = 5.6;
+  g.stroke();
+  g.strokeStyle = C.mud;
+  g.lineWidth = 3.4;
+  g.stroke();
+  g.strokeStyle = C.ink;
+  g.lineWidth = 1;
+  g.beginPath();
+  for (const t of [0.15, 0.3, 0.45, 0.6, 0.75]) {
+    const it = 1 - t;
+    const px = it * it * it * 30 + 3 * it * it * t * 28 + 3 * it * t * t * 10 + t * t * t * -2;
+    const py = it * it * it * -60 + 3 * it * it * t * -84 + 3 * it * t * t * -96 + t * t * t * -84;
+    g.moveTo(px - 2.6, py - 1);
+    g.lineTo(px + 2.6, py + 1);
+  }
+  g.stroke();
+  // body, neck and head in one outline
+  g.beginPath();
+  g.moveTo(-22, -38);
+  g.quadraticCurveTo(-4, -46, 14, -42);
+  g.lineTo(22, -47);
+  g.lineTo(28, -60);
+  g.quadraticCurveTo(33, -65, 37, -61);
+  g.lineTo(43, -51);
+  g.quadraticCurveTo(41, -46, 35, -48);
+  g.lineTo(28, -44);
+  g.lineTo(23, -32);
+  g.quadraticCurveTo(2, -24, -18, -27);
+  g.quadraticCurveTo(-27, -30, -22, -38);
+  g.closePath();
+  fillInk(g, C.wood, 1.4);
+  // dark flank stripe and beard
+  g.strokeStyle = C.mudDeep;
+  g.lineWidth = 1.6;
+  g.beginPath();
+  g.moveTo(-16, -29);
+  g.quadraticCurveTo(2, -26, 20, -33);
+  g.stroke();
+  g.beginPath();
+  g.moveTo(37, -48);
+  g.lineTo(36, -38);
+  g.lineTo(33, -46);
+  g.closePath();
+  fillInk(g, C.mudDeep, 1);
+  // near legs over the body
+  leg([[-18, -32], [-22, -15], [-19, 0]], C.wood);
+  leg([[14, -32], [15, -14], [16, 0]], C.wood);
+  // tail, ear, eye
+  g.beginPath();
+  g.moveTo(-21, -38);
+  g.lineTo(-27, -44);
+  g.strokeStyle = C.ink;
+  g.lineWidth = 2.4;
+  g.stroke();
+  g.beginPath();
+  g.moveTo(29, -58);
+  g.lineTo(24, -66);
+  g.lineTo(31, -61);
+  g.closePath();
+  fillInk(g, C.wood, 1);
+  g.beginPath();
+  g.ellipse(35, -57, 2.4, 1.4, 0.3, 0, TAU);
+  g.fillStyle = C.white;
+  g.fill();
+  g.beginPath();
+  g.arc(35.6, -57, 0.9, 0, TAU);
+  g.fillStyle = C.ink;
+  g.fill();
+  g.restore();
+}
+
+/** Greater flamingo in profile, feet on y; dir -1 faces left; `feed` = head down. */
+function drawFlamingo(g, x, y, s, dir, feed) {
+  const pink = '#e8a08a';
+  const legCol = '#c9705a';
+  g.save();
+  g.translate(x, y);
+  g.scale(dir * s, s);
+  g.lineJoin = 'round';
+  g.lineCap = 'round';
+  // legs (one bent back at the knee)
+  const leg = (pts) => {
+    g.beginPath();
+    g.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]);
+    g.strokeStyle = C.ink;
+    g.lineWidth = 3.6;
+    g.stroke();
+    g.strokeStyle = legCol;
+    g.lineWidth = 1.8;
+    g.stroke();
+  };
+  leg([[-6, -66], [-9, -34], [-6, 0], [2, 0]]);
+  leg([[2, -66], [5, -34], [3, 0], [11, 0]]);
+  // neck (S-curve) drawn as a thick pink stroke with an ink edge
+  g.beginPath();
+  g.moveTo(10, -76);
+  if (feed) g.bezierCurveTo(30, -96, 40, -70, 34, -40);
+  else g.bezierCurveTo(28, -98, -4, -110, 8, -134);
+  g.strokeStyle = C.ink;
+  g.lineWidth = 7.4;
+  g.stroke();
+  g.strokeStyle = pink;
+  g.lineWidth = 4.6;
+  g.stroke();
+  // body with red coverts and black flight feathers
+  g.beginPath();
+  g.moveTo(16, -78);
+  g.quadraticCurveTo(10, -88, -8, -86);
+  g.quadraticCurveTo(-24, -84, -30, -72);
+  g.quadraticCurveTo(-14, -60, 6, -64);
+  g.quadraticCurveTo(16, -68, 16, -78);
+  g.closePath();
+  fillInk(g, pink, 1.3);
+  g.beginPath();
+  g.moveTo(10, -78);
+  g.quadraticCurveTo(-4, -84, -18, -78);
+  g.quadraticCurveTo(-6, -70, 8, -72);
+  g.closePath();
+  fillInk(g, C.red, 1);
+  g.beginPath();
+  g.moveTo(-14, -77);
+  g.lineTo(-34, -73);
+  g.lineTo(-18, -70);
+  g.closePath();
+  fillInk(g, C.ink, 1);
+  // head and the bent, black-tipped bill
+  const hx = feed ? 34 : 8;
+  const hy = feed ? -40 : -134;
+  g.save();
+  g.translate(hx, hy);
+  if (feed) g.rotate(Math.PI * 0.62);
+  g.beginPath();
+  g.arc(0, 0, 4.6, 0, TAU);
+  fillInk(g, pink, 1.2);
+  g.beginPath();
+  g.moveTo(3, -3.4);
+  g.quadraticCurveTo(10, -3, 13, 2);
+  g.lineTo(13.5, 9);
+  g.quadraticCurveTo(9, 4, 3, 3);
+  g.closePath();
+  fillInk(g, C.white, 1.1);
+  g.beginPath();
+  g.moveTo(10.8, 0.8);
+  g.lineTo(13, 2);
+  g.lineTo(13.5, 9);
+  g.quadraticCurveTo(11.5, 5, 9.8, 3.6);
+  g.closePath();
+  g.fillStyle = C.ink;
+  g.fill();
+  g.beginPath();
+  g.arc(0.6, -1, 1.1, 0, TAU);
+  g.fillStyle = C.ink;
+  g.fill();
+  g.restore();
+  g.restore();
+}
+
+// -----------------------------------------------------------------------------
+// Static wall: plaster, frieze, borders, sky, sun disk, desert motifs, dado.
 // -----------------------------------------------------------------------------
 function bakeWall(kit) {
   return kit.bake('nile_wall', P, P, (g, rng) => {
@@ -1885,107 +1733,31 @@ function bakeWall(kit) {
     };
     for (let x = 80; x < 930; x += 36) star(x, (Y_SKY0 + Y_SKY1) / 2, 7);
 
-    // --- winged sun disk (Behdety) ---
+    // --- plain sun disk (no wings / uraeus: those are dynastic iconography) ---
     const sx = 500;
-    const sy = 124;
-    for (const side of [-1, 1]) {
-      g.save();
-      g.translate(sx, sy);
-      g.scale(side, 1);
-      const wingPath = () => {
-        g.beginPath();
-        g.moveTo(14, -16);
-        g.quadraticCurveTo(110, -20, 190, -6);
-        g.quadraticCurveTo(196, -2, 190, 2);
-        g.lineTo(150, 6);
-        for (let k = 0; k < 9; k++) {
-          const x = 150 - k * 15;
-          g.quadraticCurveTo(x - 6, 26 - k * 0.6, x - 15, 8 + Math.min(k, 6) * 1.6);
-        }
-        g.lineTo(14, 18);
-        g.closePath();
-      };
-      wingPath();
-      g.fillStyle = C.green;
-      g.fill();
-      g.save();
-      g.clip();
-      // covert rows (red / blue checks), then long primaries
-      for (let i = 0; i < 22; i++) {
-        g.fillStyle = i % 2 ? C.red : C.blue;
-        g.fillRect(14 + i * 8.4, -18, 8.4, 9);
-      }
-      g.fillStyle = C.yellow;
-      g.fillRect(14, -9, 190, 3);
-      g.strokeStyle = C.ink;
-      g.lineWidth = 1;
-      g.beginPath();
-      for (let i = 0; i < 24; i++) {
-        const x = 18 + i * 7.6;
-        g.moveTo(x, -6);
-        g.lineTo(x - 4, 30);
-      }
-      g.moveTo(10, -9);
-      g.lineTo(200, -9);
-      g.moveTo(10, -6);
-      g.lineTo(200, -6);
-      g.stroke();
-      g.restore();
-      wingPath();
-      g.strokeStyle = C.ink;
-      g.lineWidth = 1.4;
-      g.stroke();
-      // uraeus
-      g.beginPath();
-      g.moveTo(20, 16);
-      g.bezierCurveTo(28, 24, 34, 6, 28, -2);
-      g.quadraticCurveTo(30, -12, 36, -10);
-      g.quadraticCurveTo(40, -4, 33, 2);
-      g.bezierCurveTo(40, 12, 32, 30, 18, 20);
-      g.closePath();
-      fillInk(g, C.yellow, 1.2);
-      g.restore();
-    }
+    const sy = 126;
     g.beginPath();
-    g.arc(sx, sy, 21, 0, TAU);
+    g.arc(sx, sy, 24, 0, TAU);
     fillInk(g, C.red, 1.5);
     g.beginPath();
-    g.arc(sx, sy, 21, 0, TAU);
+    g.arc(sx, sy, 24, 0, TAU);
     g.strokeStyle = C.yellow;
-    g.lineWidth = 3;
+    g.lineWidth = 3.2;
     g.stroke();
     g.beginPath();
-    g.arc(sx, sy, 22.6, 0, TAU);
+    g.arc(sx, sy, 25.8, 0, TAU);
     g.strokeStyle = C.ink;
     g.lineWidth = 1.2;
     g.stroke();
 
-    // --- inscription, register I (read right to left, signs face right) ---
-    // ḫnti m ṯȝw nfr — "sailing south with a good wind"
-    const colX = [935, 890, 845];
-    const top = 166;
-    const bot = 418;
-    g.strokeStyle = C.blue;
-    g.lineWidth = 2.4;
-    g.beginPath();
-    for (const x of [958, 913, 868, 823]) {
-      g.moveTo(x, top - 6);
-      g.lineTo(x, bot);
-    }
-    g.stroke();
-    g.strokeStyle = 'rgba(193,73,40,0.35)';
-    g.lineWidth = 1;
-    g.beginPath();
-    g.moveTo(823, top - 6);
-    g.lineTo(958, top - 6);
-    g.stroke();
-    const col1 = [['Aa1', 0, 1.0], ['N35', 0, 0.95], ['X1', 0, 0.95], ['P2', 0, 1.45]];
-    const col2 = [['G17', 0, 1.25], ['V13', 0, 1.0], ['G1', 0, 1.25]];
-    const col3 = [['G43', 0, 1.2], ['P5', 0, 1.3], ['F35', 0, 1.2]];
-    const lay = (cx, list, ys) => list.forEach((s, i) => glyph(g, s[0], cx, ys[i], s[2], 1, C.blue));
-    lay(colX[0], col1, [196, 236, 266, 330]);
-    lay(colX[1], col2, [204, 268, 340]);
-    lay(colX[2], col3, [200, 272, 350]);
+    // --- register I, right: no inscription (writing is later than c. 3300-3100 BCE).
+    // Decorated-Ware motifs instead: the low desert edge with an ibex, and
+    // flamingos wading at the water's edge.
+    sandLine(g, 826, 958, 300);
+    drawRidge(g, 836, 958, [{ x: 862, w: 64, h: 30 }, { x: 912, w: 86, h: 52 }, { x: 948, w: 50, h: 34 }], 298);
+    drawIbex(g, 878, 298, 1.0, -1);
+    drawFlamingo(g, 922, 429, 0.8, -1, false);
+    drawFlamingo(g, 866, 429, 0.78, -1, true);
 
     // --- register frames ---
     const rule = (y, cols) => {
@@ -2038,34 +1810,11 @@ function bakeWall(kit) {
       g.fillRect(x, y, 1.2, 1.2);
     }
 
-    // caption over the winnowers: ṯȝw — "wind" (V13 G1 G43 + the sail determinative),
-    // a horizontal line read from the right because the signs face right
-    const capY = 742;
-    glyph(g, 'V13', 292, capY + 6, 0.85, 1, C.blue);
-    glyph(g, 'G1', 252, capY, 0.9, 1, C.blue);
-    glyph(g, 'G43', 216, capY + 2, 0.85, 1, C.blue);
-    glyph(g, 'P5', 184, capY, 0.9, 1, C.blue);
-    g.strokeStyle = C.blue;
-    g.lineWidth = 2;
-    g.beginPath();
-    g.moveTo(160, capY - 22);
-    g.lineTo(318, capY - 22);
-    g.moveTo(160, capY + 22);
-    g.lineTo(318, capY + 22);
-    g.stroke();
-
-    // inscription, register III: ḫdi — "faring north (downstream)"; signs face left
-    glyph(g, 'Aa1', 384, 744, 0.85, -1, C.blue);
-    glyph(g, 'D46', 384, 772, 0.85, -1, C.blue);
-    glyph(g, 'P1', 384, 800, 0.95, -1, C.blue);
-    g.strokeStyle = C.blue;
-    g.lineWidth = 2;
-    g.beginPath();
-    g.moveTo(364, R3_TOP + 14);
-    g.lineTo(364, R3_WATER0 - 4);
-    g.moveTo(404, R3_TOP + 14);
-    g.lineTo(404, R3_WATER0 - 4);
-    g.stroke();
+    // over the threshing floor: the low desert edge (Decorated-Ware hill row)
+    sandLine(g, 150, 334, 754);
+    drawRidge(g, 152, 332, [{ x: 172, w: 52, h: 18 }, { x: 214, w: 62, h: 30 }, { x: 258, w: 58, h: 20 }, { x: 300, w: 64, h: 27 }], 752);
+    // a flamingo at the near bank of the river going north
+    drawFlamingo(g, 394, 818, 0.66, 1, false);
 
     // --- dado: coloured lines over speckled "granite" ---
     let y = DADO;
@@ -2213,6 +1962,47 @@ function drawZigzags(g, x0, x1, y0, y1, rows, T, speed, amp = 3.6, per = 16) {
   }
   g.stroke();
   g.restore();
+}
+
+/** Three ibis feathers popped loose on the hop (T = raw local time, 5.0 .. 9.6). */
+function drawLooseFeathers(g, T) {
+  for (let i = 0; i < 3; i++) {
+    const t = T - 5.04 - i * 0.07;
+    if (t <= 0) continue;
+    const fall = Math.min(t, 3.4);
+    const x = 168 + i * 12 + fall * (30 + 9 * i) + 9 * Math.sin(t * 2.6 + i * 2);
+    let y = 590 - i * 10 - 62 * (1 - Math.exp(-t * 6)) + 36 * fall;
+    y = Math.min(y, ROAD - 4);
+    const landed = y >= ROAD - 4;
+    const a = landed ? 0.1 + i * 0.2 : Math.sin(t * 3.4 + i * 1.7) * 0.9 + 0.4;
+    const fade = 1 - sstep(8.8, 9.6, T);
+    if (fade <= 0) continue;
+    g.save();
+    g.globalAlpha = fade;
+    g.translate(x, y);
+    g.rotate(a);
+    g.scale(1.3, 1.3);
+    g.beginPath();
+    g.moveTo(-8, 0);
+    g.quadraticCurveTo(-1, -4.2, 8, -0.6);
+    g.quadraticCurveTo(0, 3.6, -8, 0);
+    g.closePath();
+    fillInk(g, C.white, 1);
+    g.beginPath();
+    g.moveTo(3, -2.4);
+    g.quadraticCurveTo(6, -1.6, 8, -0.6);
+    g.quadraticCurveTo(5.5, 1.4, 3, 1.8);
+    g.closePath();
+    g.fillStyle = C.ink;
+    g.fill();
+    g.strokeStyle = C.ink;
+    g.lineWidth = 0.8;
+    g.beginPath();
+    g.moveTo(-9.5, 0.3);
+    g.lineTo(6, -0.6);
+    g.stroke();
+    g.restore();
+  }
 }
 
 function drawLotus(g, x, y, h, a, open) {
@@ -2542,7 +2332,8 @@ export function render(kit, slot, scene, params) {
   ctx.drawImage(wall, 0, 0);
 
   // ===== Register I: the river going south =====
-  drawZigzags(ctx, 38, 962, R1_WATER0 + 2, R1_WATER1, 2, T, 9, 3.2, 15);
+  // the Nile flows north (left) — the boat sails south against it
+  drawZigzags(ctx, 38, 962, R1_WATER0 + 2, R1_WATER1, 2, T, -6, 3.2, 15);
   // fish under the keel
   for (let i = 0; i < 4; i++) {
     const fx = ((((100 + i * 247 - T * (10 + i * 3)) % 940) + 940) % 940) + 30;
@@ -2560,14 +2351,27 @@ export function render(kit, slot, scene, params) {
   }
 
   // the sailing boat
-  const bx = 228 + T * 6;
+  const bx = 236 + T * 4; // slow drift upstream; stays clear of the ibex up to T = 16
   const by = R1_WL + Math.sin(T * 2.1) * 1.2;
   ctx.drawImage(boatSpr, bx - SPR_OX, by - SPR_OY);
-  const Lp = (p) => ({ x: bx + p.x, y: by + p.y });
-  const ap = Lp(BOAT.apex);
+  const mt = BOAT.mast;
+  const mastX = bx + mt.x;
+  const mastTopY = by + mt.top;
   const sg = sailGeom(bx + BOAT.yard.x0, bx + BOAT.yard.x1, by + BOAT.yard.y + 2, by + BOAT.boomY, bill);
-  drawSail(ctx, sg, bill, 1, 7);
-  // yard + boom spars
+  drawSail(ctx, sg, bill, 1, 6);
+  // the pole mast reads through the sail (Egyptian convention), then yard + boom
+  ctx.beginPath();
+  ctx.moveTo(mastX, by + BOAT.boomY + 14);
+  ctx.lineTo(mastX, mastTopY + 2);
+  ctx.strokeStyle = C.ink;
+  ctx.lineWidth = 6.4;
+  ctx.stroke();
+  ctx.strokeStyle = C.wood;
+  ctx.lineWidth = 3.8;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.rect(mastX - 5, mastTopY - 8, 10, 9);
+  fillInk(ctx, C.red, 1.2);
   const spar = (x0, y0, x1, y1) => {
     ctx.beginPath();
     ctx.moveTo(x0, y0);
@@ -2579,29 +2383,21 @@ export function render(kit, slot, scene, params) {
     ctx.lineWidth = 3.4;
     ctx.stroke();
   };
-  spar(sg.tl.x - 10, sg.tl.y, sg.tr.x + 10, sg.tr.y);
-  spar(sg.bl.x - 9, sg.bl.y, sg.br.x + 9, sg.br.y);
-  // lifts fanning from the masthead to the yard and boom; sheets aft to the crew
-  ctx.strokeStyle = 'rgba(28,24,21,0.85)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  for (const f of [0, 0.25, 0.75, 1]) {
-    ctx.moveTo(ap.x, ap.y + 4);
-    ctx.lineTo(lerp(sg.bl.x - 9, sg.br.x + 9, f), sg.bl.y);
-  }
-  ctx.moveTo(ap.x, ap.y + 4);
-  ctx.lineTo(sg.tl.x - 10, sg.tl.y);
-  ctx.moveTo(ap.x, ap.y + 4);
-  ctx.lineTo(sg.tr.x + 10, sg.tr.y);
+  spar(sg.tl.x - 8, sg.tl.y, sg.tr.x + 8, sg.tr.y);
+  spar(sg.bl.x - 7, sg.bl.y, sg.br.x + 7, sg.br.y);
+  // minimal rigging only: one sheet from the after end of the boom to the two hands
+  // who tend it (the earliest images show little or no rigging)
   const cr = BOAT.crew;
   const u70 = 70 / 19.5;
   const hand = (m, hx, hy) => ({ x: bx + m.x + hx * u70, y: by + m.y - hy * u70 });
   const s1 = hand(cr.sheet1, 5.2, 15.8);
   const s2 = hand(cr.sheet2, 5.0, 16.0);
-  ctx.moveTo(sg.bl.x - 9, sg.bl.y);
-  ctx.quadraticCurveTo((sg.bl.x + s1.x) / 2, (sg.bl.y + s1.y) / 2 + 6 * (1 - bill), s1.x, s1.y);
-  ctx.moveTo(sg.br.x + 9, sg.br.y);
-  ctx.quadraticCurveTo((sg.br.x + s2.x) / 2, (sg.br.y + s2.y) / 2 + 10 * (1 - bill), s2.x, s2.y);
+  ctx.strokeStyle = 'rgba(28,24,21,0.85)';
+  ctx.lineWidth = 1.1;
+  ctx.beginPath();
+  ctx.moveTo(sg.bl.x - 6, sg.bl.y + 1);
+  ctx.quadraticCurveTo((sg.bl.x + s2.x) / 2 - 2, (sg.bl.y + s2.y) / 2 + 5 * (1 - bill), s2.x, s2.y);
+  ctx.quadraticCurveTo((s2.x + s1.x) / 2, (s2.y + s1.y) / 2 + 3, s1.x, s1.y);
   ctx.stroke();
   // the hand at the mast hauls on the halyard, on the beat
   const haul = Math.pow(Math.abs(Math.sin(T * Math.PI)), 0.7);
@@ -2610,15 +2406,15 @@ export function render(kit, slot, scene, params) {
     x: bx + mh.x,
     y: by + mh.y,
     H: mh.H,
-    dir: -1,
+    dir: 1,
     stride: 0.9,
     lean: 0.1 - 0.12 * haul,
-    hands: { f: [3.2, lerp(17.8, 14.2, haul)], b: [2.6, lerp(16.4, 13.0, haul)] },
+    hands: { f: [3.6, lerp(17.8, 14.2, haul)], b: [3.0, lerp(16.4, 13.0, haul)] },
   });
   ctx.strokeStyle = 'rgba(28,24,21,0.85)';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(ap.x + 2, ap.y + 2);
+  ctx.moveTo(mastX - 3, mastTopY + 2);
   ctx.lineTo(mres.f.x, mres.f.y);
   ctx.lineTo(mres.b.x, mres.b.y + 10);
   ctx.stroke();
@@ -2652,29 +2448,8 @@ export function render(kit, slot, scene, params) {
   drawButterfly(ctx, 862 + Math.sin(T * 0.7 + 2) * 14, 520 + Math.sin(T * 1.8 + 1) * 8, 0.8, T * 10 + 1);
   ctx.restore();
   drawIbis(ctx, 160, ROAD, ibisPose(T, thumb));
-  // the ibis' speech caption, painted in on the double take: ptr — "Behold!"
-  if (!thumb && T > 5.0 && T < 11.4) {
-    const fade = 1 - sstep(10.8, 11.4, T);
-    const signs = [['Q3', 488, 0.85], ['X1', 508, 0.85], ['D21', 524, 0.75], ['D6', 548, 0.85]];
-    ctx.save();
-    ctx.globalAlpha = fade;
-    ctx.strokeStyle = C.blue;
-    ctx.lineWidth = 2;
-    const top = 474;
-    const grow = sstep(5.0, 5.5, T);
-    ctx.beginPath();
-    ctx.moveTo(240, top);
-    ctx.lineTo(240, top + 92 * grow);
-    ctx.moveTo(284, top);
-    ctx.lineTo(284, top + 92 * grow);
-    ctx.stroke();
-    signs.forEach((sg, i) => {
-      const k = sstep(5.0 + i * 0.12, 5.14 + i * 0.12, T);
-      if (k <= 0) return;
-      glyph(ctx, sg[0], 262, sg[1], sg[2] * (0.6 + 0.4 * k) * (1 + 0.25 * Math.sin(Math.PI * k)), 1, C.blue);
-    });
-    ctx.restore();
-  }
+  // the double take shakes a few black-tipped feathers loose; they drift downwind
+  if (!thumb && T > 5.0 && T < 9.6) drawLooseFeathers(ctx, T);
 
   // ===== Register III: threshing floor and the river going north =====
   drawWinnowers(ctx, T, gust, kit);

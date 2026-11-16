@@ -158,6 +158,17 @@ function makeCtx(mode, prog = PROG[mode] || PROG.major) {
   return { mode, prog, m, root, fifth, voicings, mel };
 }
 
+/** Highest chord tone of the note's bar at least a minor third below it (brass-section harmony). */
+function harmonyBelow(c, n) {
+  const bar = Math.min(3, Math.floor(n.s / 8));
+  let best = n.midi - 12;
+  for (const d of c.prog[bar]) for (let o = -2; o <= 1; o++) {
+    const m = c.m(d, o);
+    if (m <= n.midi - 3 && m > best) best = m;
+  }
+  return best;
+}
+
 const at = (V, i) => V[((i % V.length) + V.length) % V.length] + 12 * Math.floor(i / V.length);
 
 function strum(A, tr, voice, b, notes, vel, dur, dir = 'd', spread = 0.03, p) {
@@ -180,7 +191,7 @@ const ERA_ARR = {
   nile(A, c) {
     for (const n of c.mel(0)) {
       A.note('lead', 'harp', n.b, n.d, n.midi, n.vel, { pan: 0.1 });
-      if (n.l >= 3) A.note('lead', 'harp', n.b - 0.06, 0.2, c.m(n.deg - 2), n.vel * 0.45, { pan: 0.1 }); // grace from a third below
+      if (n.l >= 3) A.note('lead', 'harp', n.b - 0.06, 0.2, c.m(n.deg - 3), n.vel * 0.45, { pan: 0.1 }); // grace from the fifth below
     }
     // final rolled chord
     [0, 2, 4].forEach((d, k) => A.note('comp', 'harp', 14 + k * 0.08, 2, c.m(d, -1), 0.5));
@@ -200,8 +211,8 @@ const ERA_ARR = {
     }
     A.hit('perc', 'zill', 0, 0.35, { pan: 0.4 });
     A.hit('perc', 'zill', 8, 0.3, { pan: 0.4 });
-    // pickup: harp glissando up the mode into the first A
-    for (let k = 0; k < 7; k++) A.note('lead', 'harp', -0.9 + k * 0.12, 0.6, c.m(k - 3), 0.3 + k * 0.05, { pan: 0.1 });
+    // pickup: harp sweep up the tonic chord (pedals set to D–F#–A) into the first A
+    [50, 54, 57, 62, 66].forEach((m, k) => A.note('lead', 'harp', -0.8 + k * 0.15, 0.6, m, 0.3 + k * 0.06, { pan: 0.1 }));
     return {
       tracks: { lead: T(1, 0.1, 0.3, 0.05), comp: T(0.42, -0.35, 0.3, 0.05), drone: T(0.3, 0, 0.3), perc: T(0.5, 0.15, 0.12, 0.22) },
     };
@@ -232,7 +243,7 @@ const ERA_ARR = {
     }
     // pickup: tombak riz (roll)
     for (let k = 0; k < 6; k++) A.hit('perc', 'tombakBak', -0.75 + k * 0.125, 0.28 + k * 0.08);
-    return { tracks: { lead: T(1, 0.12, 0.28, 0.05), comp: T(0.4, -0.3, 0.28), drone: T(0.22, 0, 0.3), perc: T(0.52, -0.12, 0.1, 0.22) } };
+    return { tracks: { lead: T(1, 0.12, 0.28, 0.05), comp: T(0.78, -0.3, 0.28), drone: T(0.45, 0, 0.3), perc: T(0.72, -0.12, 0.1, 0.22) } };
   },
 
   // 03 Medieval: recorder + parallel-fourth organum, bagpipe-like drone, tabor
@@ -257,7 +268,7 @@ const ERA_ARR = {
       for (const [o, v] of [[0, 0.9], [1, 0.5], [1.5, 0.6], [2, 0.85], [3, 0.55], [3.5, 0.5]]) A.hit('perc', 'tabor', B + o, v);
     }
     for (const [o, v] of [[-0.5, 0.35], [-0.375, 0.42], [-0.25, 0.5], [-0.125, 0.58]]) A.hit('perc', 'tabor', o, v);
-    return { tracks: { lead: T(1, 0.08, 0.42), lead2: T(0.48, -0.25, 0.42), drone: T(0.26, 0, 0.4), perc: T(0.45, 0.2, 0.3, 0.1) } };
+    return { tracks: { lead: T(1, 0.08, 0.42), lead2: T(0.8, -0.25, 0.42), drone: T(0.35, 0, 0.4), perc: T(0.55, 0.2, 0.3, 0.1) } };
   },
 
   // 04 La Mancha: nylon guitar, rasgueado, thumb bass, castanets + palmas (Phrygian dominant)
@@ -289,7 +300,7 @@ const ERA_ARR = {
     }
     for (const [o, v] of [[-0.25, 0.4], [-0.1875, 0.5], [-0.125, 0.6], [-0.0625, 0.7]]) A.hit('perc', 'castanet', o, v, { pan: 0.35 });
     A.hit('perc', 'palmas', -0.5, 0.4, { pan: -0.4 });
-    return { tracks: { lead: T(1, 0.15, 0.14, 0.2), comp: T(0.36, -0.3, 0.12, 0.2), bass: T(0.5, -0.1, 0.05, 0.15), perc: T(0.42, 0, 0.08, 0.2) } };
+    return { tracks: { lead: T(1, 0.15, 0.14, 0.2), comp: T(0.26, -0.3, 0.12, 0.2), bass: T(0.5, -0.1, 0.05, 0.15), perc: T(0.7, 0, 0.08, 0.2) } };
   },
 
   // 05 Dutch Golden Age: harpsichord with ornaments, harpsichord chords, cello continuo (Pachelbel-ish descent)
@@ -314,10 +325,10 @@ const ERA_ARR = {
         prev.slice(1).forEach((m, k) => A.note('comp', 'harpsichord', bar * 4 + h * 2 + 0.02 * (k + 1), 0.88, m, 0.45, { pan: -0.15 }));
       }),
     );
-    const bass = [[50, 49, 47, 45], [43, 42, 40, 40], [45, 49, 52, 45], [50, 45, 38]];
+    const bass = [[50, 49, 47, 45], [43, 47, 50, 47], [45, 49, 52, 45], [50, 45, 38]];
     bass.forEach((line, bar) => line.forEach((m, k) => A.note('bass', 'cello', bar * 4 + k, k === 2 && bar === 3 ? 2 : 0.85, m, 0.6)));
     for (const [o, m, v] of [[-0.5, 62, 0.5], [-0.375, 64, 0.55], [-0.25, 66, 0.6], [-0.125, 67, 0.65]]) A.note('lead', 'harpsichord', o, 0.12, m, v);
-    return { tracks: { lead: T(1, 0.15, 0.1, 0.3), comp: T(0.4, -0.15, 0.1, 0.3), bass: T(0.48, -0.1, 0.08, 0.3) } };
+    return { tracks: { lead: T(1, 0.15, 0.1, 0.3), comp: T(0.5, -0.15, 0.1, 0.3), bass: T(0.48, -0.1, 0.08, 0.3) } };
   },
 
   // 06 Ming/Qing: guzheng (bends, slides, glissandi), low open-string drone, muyu
@@ -346,7 +357,7 @@ const ERA_ARR = {
     for (let bar = 0; bar < 4; bar++) for (const [o, v] of [[0, 0.7], [1, 0.38], [2, 0.55], [3, 0.38]]) A.hit('perc', 'muyu', bar * 4 + o, v);
     A.hit('perc', 'pengling', 0, 0.3, { pan: -0.3 });
     A.hit('perc', 'pengling', 8, 0.26, { pan: -0.3 });
-    return { tracks: { lead: T(1, 0.12, 0.32), comp: T(0.38, -0.2, 0.32), drone: T(0.42, -0.05, 0.3), perc: T(0.38, 0.3, 0.12, 0.2) } };
+    return { tracks: { lead: T(1, 0.12, 0.32), comp: T(0.6, -0.2, 0.32), drone: T(0.75, -0.05, 0.3), perc: T(0.65, 0.3, 0.12, 0.2) } };
   },
 
   // 07 Enlightenment string quartet: violin I melody, repeated-8th inner voices, cello bass
@@ -370,7 +381,7 @@ const ERA_ARR = {
     }
     A.note('lead', 'violin', -0.5, 0.22, 78, 0.5, { pan: 0.2 });
     A.note('lead', 'violin', -0.25, 0.22, 79, 0.55, { pan: 0.2 });
-    return { tracks: { lead: T(1, 0.2, 0.2, 0.3), comp: T(0.34, 0, 0.18, 0.3), bass: T(0.5, -0.25, 0.15, 0.3) } };
+    return { tracks: { lead: T(1, 0.2, 0.2, 0.3), comp: T(0.5, 0, 0.18, 0.3), bass: T(0.7, -0.25, 0.15, 0.3) } };
   },
 
   // 08 American West: banjo with drone-string rolls, boom-chick guitar, upright, washboard (shuffle)
@@ -393,7 +404,7 @@ const ERA_ARR = {
     }
     A.hit('perc', 'wbScrape', -0.5, 0.4, { pan: 0.3 });
     A.note('lead', 'banjo', -0.5, 0.5, 67, 0.5, { pan: 0.15 });
-    return { tracks: { lead: T(1, 0.15, 0.08, 0.24), comp: T(0.32, -0.3, 0.06, 0.22), bass: T(0.56, -0.05, 0.05, 0.2), perc: T(0.4, 0.3, 0.05, 0.18) } };
+    return { tracks: { lead: T(1, 0.15, 0.08, 0.24), comp: T(0.5, -0.3, 0.06, 0.22), bass: T(0.72, -0.05, 0.05, 0.2), perc: T(0.7, 0.3, 0.05, 0.18) } };
   },
 
   // 09 Victorian parlour: music box over a pump organ, clockwork ticks
@@ -407,7 +418,7 @@ const ERA_ARR = {
     }
     for (let k = 0; k < 32; k++) A.hit('fx', 'tick', k * 0.5, k % 2 ? 0.15 : 0.22, { pan: 0.45 });
     for (const o of [-0.9, -0.72, -0.54, -0.36]) A.hit('fx', 'ratchet', o, 0.45, { pan: 0.3 });
-    return { tracks: { lead: T(1, 0.08, 0.32, 0.05), comp: T(0.3, -0.15, 0.3), bass: T(0.32, 0, 0.25), fx: T(0.12, 0.4, 0.05, 0.1) } };
+    return { tracks: { lead: T(1, 0.08, 0.32, 0.05), comp: T(0.42, -0.15, 0.3), bass: T(0.75, 0, 0.25), fx: T(0.8, 0.4, 0.05, 0.1) } };
   },
 
   // 10 Danish folk: fiddle with slides, cuts and double-stops; accordion oom-pah (Mixolydian)
@@ -427,7 +438,7 @@ const ERA_ARR = {
       A.note('bass', 'accbass', bar * 4 + 2, bar === 3 ? 1.6 : 0.8, bar === 3 ? c.root(bar) : c.fifth(bar), 0.6);
     }
     for (const [o, m, v] of [[-0.375, 64, 0.5], [-0.25, 66, 0.55], [-0.125, 67, 0.6]]) A.note('lead', 'fiddle', o, 0.12, m, v, { pan: 0.15 });
-    return { tracks: { lead: T(1, 0.15, 0.14, 0.26), comp: T(0.3, -0.25, 0.1, 0.24), bass: T(0.45, -0.1, 0.06, 0.2) } };
+    return { tracks: { lead: T(1, 0.15, 0.14, 0.26), comp: T(0.6, -0.25, 0.1, 0.24), bass: T(0.6, -0.1, 0.06, 0.2) } };
   },
 
   // 11 1920s: honky-tonk ragtime piano (RH octaves), stride chords, tuba, brushes (Dorian, swung)
@@ -447,14 +458,14 @@ const ERA_ARR = {
     }
     A.hit('perc', 'brushSwish', -1, 0.4);
     A.note('lead', 'piano', -0.12, 0.12, 68, 0.5, { p: { honky: 1 } });
-    return { tracks: { lead: T(1, 0.1, 0.12, 0.28), comp: T(0.36, -0.15, 0.1, 0.28), bass: T(0.5, -0.2, 0.06, 0.24), perc: T(0.38, 0.3, 0.06, 0.25) } };
+    return { tracks: { lead: T(1, 0.1, 0.12, 0.28), comp: T(0.68, -0.15, 0.1, 0.28), bass: T(0.5, -0.2, 0.06, 0.24), perc: T(0.54, 0.3, 0.06, 0.25) } };
   },
 
   // 12 1941 newsreel: trumpets + horn thirds, afterbeats, tuba, march snare/bass drum/cymbals (band-limited)
   putnam(A, c) {
     for (const n of c.mel(0)) {
       A.note('lead', 'trumpet', n.b, n.d * 0.82, n.midi, n.vel, { pan: 0.08 });
-      A.note('lead2', 'horn', n.b, n.d * 0.82, c.m(n.deg - 2), n.vel * 0.62, { pan: -0.2 });
+      A.note('lead2', 'horn', n.b, n.d * 0.82, harmonyBelow(c, n), n.vel * 0.62, { pan: -0.2 });
     }
     const V = c.voicings(53, 67);
     for (let bar = 0; bar < 4; bar++) {
@@ -472,7 +483,7 @@ const ERA_ARR = {
     const r = mulberry32(77);
     for (let k = 0; k < 40; k++) A.hit('fx', 'crackle', -0.5 + r() * 16.5, 0.15 + r() * 0.25, { pan: r() - 0.5 });
     return {
-      tracks: { lead: T(1, 0.08, 0.22, 0.05), lead2: T(0.42, -0.2, 0.22), comp: T(0.28, -0.3, 0.2), bass: T(0.52, 0, 0.12), perc: T(0.42, 0.1, 0.18, 0.12), fx: T(0.1, 0, 0) },
+      tracks: { lead: T(1, 0.08, 0.22, 0.05), lead2: T(0.64, -0.2, 0.22), comp: T(0.62, -0.3, 0.2), bass: T(0.68, 0, 0.12), perc: T(0.55, 0.1, 0.18, 0.12), fx: T(0.4, 0, 0) },
       eq: [['highpass', 150, 0.7, 0], ['peaking', 1600, 0.9, 2.5], ['lowpass', 5200, 0.7, 0]],
     };
   },
@@ -484,7 +495,7 @@ const ERA_ARR = {
     let prev = null;
     harm.forEach((degs, bar) => {
       prev = voiceChord('lydian', degs, 54, 70, prev);
-      for (const [o, d] of bar === 3 ? [[0, 0.4], [1.5, 2.4]] : [[0, 0.4], [1.5, 1.2]]) prev.forEach((m) => A.note('comp', 'piano', bar * 4 + o, d, m, 0.36));
+      for (const [o, d] of bar === 3 ? [[0, 0.4], [1.5, 1.9]] : [[0, 0.4], [1.5, 1.2]]) prev.forEach((m) => A.note('comp', 'piano', bar * 4 + o, d, m, 0.36));
     });
     const walk = [[38, 42, 45, 41], [40, 44, 47, 44], [45, 49, 52, 49], [38, 45, 38]];
     walk.forEach((line, bar) => line.forEach((m, k) => A.note('bass', 'upright', bar * 4 + k, k === 2 && bar === 3 ? 2 : 0.92, m, k === 0 ? 0.75 : 0.62)));
@@ -493,7 +504,7 @@ const ERA_ARR = {
       for (const [o, v] of [[1, 0.5], [3, 0.5], [2.5, 0.28], [3.5, 0.3]]) A.hit('perc', 'brushTap', bar * 4 + o, v);
     }
     A.hit('perc', 'brushSwish', -1, 0.38);
-    return { tracks: { lead: T(1, 0.12, 0.22, 0.22, { trem: { rate: 5.5, depth: 0.28 } }), comp: T(0.3, -0.2, 0.2, 0.22), bass: T(0.55, -0.05, 0.05, 0.2), perc: T(0.34, 0.3, 0.08, 0.22) } };
+    return { tracks: { lead: T(1, 0.12, 0.22, 0.22, { trem: { rate: 5.5, depth: 0.28 } }), comp: T(0.72, -0.2, 0.2, 0.22), bass: T(0.55, -0.05, 0.05, 0.2), perc: T(0.7, 0.3, 0.08, 0.22) } };
   },
 
   // 14 1970s: analog mono lead with glide, string machine, octave disco bass, four-on-the-floor (Dorian)
@@ -504,7 +515,7 @@ const ERA_ARR = {
       A.note('lead', 'analog', n.b, n.d * 0.95, n.midi, n.vel, { p: legato ? { from: last.midi } : undefined });
       last = n;
     }
-    const V = c.voicings(55, 72);
+    const V = c.voicings(50, 67);
     V.forEach((ch, bar) => ch.forEach((m, k) => A.note('comp', 'strpad', bar * 4, bar === 3 ? 3.6 : 3.9, m, 0.55, { pan: (k - 1) * 0.35 })));
     for (let bar = 0; bar < 4; bar++) {
       for (let k = 0; k < 8; k++) {
@@ -520,14 +531,15 @@ const ERA_ARR = {
       for (let k = 0; k < 16; k++) A.hit('perc', 'tamb', bar * 4 + k * 0.25, k % 2 ? 0.16 : 0.24, { pan: -0.35 });
     }
     for (const [o, k, v] of [[-0.5, 'tomHi', 0.5], [-0.375, 'tomHi', 0.52], [-0.25, 'tomMid', 0.56], [-0.125, 'tomLo', 0.6]]) A.hit('perc', k, o, v);
-    return { tracks: { lead: T(1, 0.05, 0.14, 0.12, { delay: { time: 0.375, fb: 0.25, mix: 0.16 } }), comp: T(0.3, 0, 0.18, 0.1), bass: T(0.5, 0, 0.04, 0.08), perc: T(0.42, 0, 0.06, 0.15) } };
+    return { tracks: { lead: T(1, 0.05, 0.14, 0.12, { delay: { time: 0.375, fb: 0.25, mix: 0.16 } }), comp: T(0.3, 0, 0.18, 0.1), bass: T(0.42, 0, 0.04, 0.08), perc: T(0.42, 0, 0.06, 0.15) } };
   },
 
   // 15 1980s synthwave: supersaw lead with ping-pong delay, warm pad, 8th bass, gated snare (natural minor)
   california(A, c) {
     for (const n of c.mel(0)) A.note('lead', 'supersaw', n.b, n.d * 0.92, n.midi, n.vel);
-    const V = c.voicings(55, 72);
-    V.forEach((ch, bar) => ch.forEach((m, k) => A.note('comp', 'pad', bar * 4, bar === 3 ? 3.5 : 3.9, m, 0.55, { pan: (k - 1) * 0.4, p: { att: 0.15, rel: 0.5 } })));
+    const V = c.voicings(50, 67);
+    // last chord released a beat early so the minor third has gone before the next era's major downbeat
+    V.forEach((ch, bar) => ch.forEach((m, k) => A.note('comp', 'pad', bar * 4, bar === 3 ? 2.5 : 3.9, m, 0.55, { pan: (k - 1) * 0.4, p: { att: 0.15, rel: 0.5 } })));
     for (let bar = 0; bar < 4; bar++) {
       for (let k = 0; k < 8; k++) {
         if (bar === 3 && k >= 6) continue;
@@ -556,7 +568,7 @@ const ERA_ARR = {
       for (let k = 0; k < 8; k++) A.hit('perc', 'chipHat', bar * 4 + k * 0.5, k % 2 ? 0.3 : 0.4, { pan: 0.25 });
     }
     [62, 66, 69, 74, 78].forEach((m, k) => A.note('lead', 'chip', -0.6 + k * 0.1, 0.09, m + 12, 0.45, { p: { duty: 0.5 } }));
-    return { tracks: { lead: T(1, 0.08, 0.04, 0.12), comp: T(0.26, -0.25, 0.04, 0.1), bass: T(0.5, 0, 0, 0.06), perc: T(0.38, 0.05, 0, 0.08) } };
+    return { tracks: { lead: T(1, 0.08, 0.04, 0.12), comp: T(0.8, -0.25, 0.04, 0.1), bass: T(0.5, 0, 0, 0.06), perc: T(0.5, 0.05, 0, 0.08) } };
   },
 
   // 17 2017 floating offshore: FM bells over an evolving pad, sub, soft clicks (Lydian, spacious)
@@ -571,7 +583,7 @@ const ERA_ARR = {
       for (let k = 0; k < 8; k++) A.hit('perc', 'shaker', bar * 4 + k * 0.5, k % 2 ? 0.16 : 0.24, { pan: 0.35 });
     }
     A.hit('perc', 'swell', -1.1, 0.45);
-    return { tracks: { lead: T(1, 0.1, 0.5, 0, { delay: { time: 0.75, fb: 0.35, mix: 0.18, pingpong: true } }), comp: T(0.36, 0, 0.5), bass: T(0.42, 0, 0), perc: T(0.32, 0, 0.3, 0.2) } };
+    return { tracks: { lead: T(1, 0.1, 0.5, 0, { delay: { time: 0.75, fb: 0.35, mix: 0.18, pingpong: true } }), comp: T(0.36, 0, 0.5), bass: T(0.42, 0, 0), perc: T(0.75, 0, 0.3, 0.2) } };
   },
 
   // 18 Taiwan 2019: yueqin with tremolo, sheng fifths, temple gongs, cymbals, clapper and drum (gong pentatonic)
@@ -595,7 +607,7 @@ const ERA_ARR = {
     A.hit('perc', 'gongBig', 0, 0.55);
     A.hit('perc', 'gongBig', 8, 0.42);
     for (let k = 0; k < 6; k++) A.hit('perc', 'bangu', -0.75 + k * 0.125, 0.28 + k * 0.06, { pan: -0.1 });
-    return { tracks: { lead: T(1, 0.12, 0.26, 0.05), comp: T(0.26, 0, 0.3), drone: T(0.2, 0, 0.25), perc: T(0.42, 0.1, 0.2, 0.18) } };
+    return { tracks: { lead: T(1, 0.12, 0.26, 0.05), comp: T(0.5, 0, 0.3), drone: T(0.4, 0, 0.25), perc: T(0.75, 0.1, 0.2, 0.18) } };
   },
 
   // 19 2020s giants: pluck lead + 16th arps, side-chained supersaw pad and sub, modern electro drums (Lydian)
@@ -621,8 +633,8 @@ const ERA_ARR = {
     return {
       tracks: {
         lead: T(1, 0, 0.22, 0.05, { delay: { time: 0.375, fb: 0.28, mix: 0.18, pingpong: true } }),
-        comp: T(0.28, 0, 0.2, 0.05, { duck: { ...duck, depth: 0.35 } }),
-        pad: T(0.2, 0, 0.25, 0, { duck }),
+        comp: T(0.45, 0, 0.2, 0.05, { duck: { ...duck, depth: 0.35 } }),
+        pad: T(0.28, 0, 0.25, 0, { duck }),
         bass: T(0.48, 0, 0, 0, { duck: { ...duck, depth: 0.5 } }),
         perc: T(0.44, 0, 0.08, 0.1),
       },
@@ -642,7 +654,7 @@ const ERA_ARR = {
       if (bar % 2 === 1) for (const o of [3.25, 3.5, 3.75]) A.hit('perc', 'glitch', bar * 4 + o, 0.22, { pan: (o - 3.5) * 2, p: { v: Math.round(o * 4) } });
     }
     for (let k = 0; k < 6; k++) A.hit('perc', 'glitch', -0.5 + k * 0.0625, 0.2 + k * 0.03, { pan: k % 2 ? 0.3 : -0.3, p: { v: k } });
-    return { tracks: { lead: T(1, 0.08, 0.2, 0.12, { delay: { time: 0.25, fb: 0.2, mix: 0.1, pingpong: true } }), comp: T(0.3, -0.2, 0.18, 0.1), bass: T(0.48, 0, 0), perc: T(0.4, 0, 0.08, 0.12) } };
+    return { tracks: { lead: T(1, 0.08, 0.2, 0.12, { delay: { time: 0.25, fb: 0.2, mix: 0.1, pingpong: true } }), comp: T(0.5, -0.2, 0.18, 0.1), bass: T(0.48, 0, 0), perc: T(0.53, 0, 0.08, 0.12) } };
   },
 };
 
@@ -661,7 +673,7 @@ function intro(A) {
   chimes.forEach(([b, m, v], k) => A.note('chime', 'bell', b, 1, m, v, { pan: k % 2 ? 0.45 : -0.4 }));
   A.hit('fx', 'bikeBell', 8, 0.55, { pan: -0.1 });
   A.hit('fx', 'bikeBell', 8.42, 0.45, { pan: -0.1 });
-  return { tracks: { pad: T(0.5, 0, 0.45), lead: T(0.85, 0.05, 0.45), chime: T(0.34, 0, 0.55), fx: T(0.32, -0.1, 0.2, 0.15) } };
+  return { tracks: { pad: T(0.4, 0, 0.45), lead: T(0.85, 0.05, 0.45), chime: T(0.55, 0, 0.55), fx: T(0.6, -0.1, 0.2, 0.15) } };
 }
 
 function outro(A) {
@@ -733,12 +745,12 @@ function outro(A) {
   return {
     tracks: {
       relay: T(0.95, 0, 0.3, 0.1),
-      glue: T(0.34, 0.1, 0.32, 0.1),
-      harp: T(0.34, -0.3, 0.3),
-      pad: T(0.26, 0, 0.4),
-      bass: T(0.4, -0.1, 0.2, 0.15),
+      glue: T(0.5, 0.1, 0.32, 0.1),
+      harp: T(0.45, -0.3, 0.3),
+      pad: T(0.3, 0, 0.4),
+      bass: T(0.52, -0.1, 0.2, 0.15),
       sub: T(0.3, 0, 0),
-      perc: T(0.3, 0.1, 0.15, 0.15),
+      perc: T(0.48, 0.1, 0.15, 0.15),
       fx: T(0.22, 0.1, 0.1, 0.1),
     },
   };
@@ -747,7 +759,7 @@ function outro(A) {
 // -----------------------------------------------------------------------------
 // Per-era mix intent: relative loudness (dB) and wind strength (0..1).
 // -----------------------------------------------------------------------------
-const ERA_LOUD = { nile: 0, persia: 0, postmill: -0.5, quixote: 0.3, dutch: -0.8, china: -0.5, smeaton: -0.3, halladay: 0, brush: -1.2, lacour: 0, betz: 0, putnam: 0.5, gedser: -0.5, tvind: 0.5, california: 0.5, vindeby: 0.2, hywind: -1.0, taiwan: 0, giants: 0.8, agent: 0.3 };
+const ERA_LOUD = { nile: 0, persia: 0, postmill: 0, quixote: -0.4, dutch: -0.6, china: -0.2, smeaton: -0.1, halladay: -0.4, brush: 0.2, lacour: 0, betz: 0, putnam: 0, gedser: 0.1, tvind: 0, california: 0, vindeby: -0.3, hywind: -0.3, taiwan: -1.4, giants: 0, agent: 0 };
 export const ERA_WIND = { nile: 0.85, persia: 0.7, postmill: 0.55, quixote: 0.65, dutch: 0.6, china: 0.5, smeaton: 0.35, halladay: 0.55, brush: 0.4, lacour: 0.45, betz: 0.3, putnam: 0.5, gedser: 0.5, tvind: 0.45, california: 0.5, vindeby: 0.85, hywind: 0.95, taiwan: 0.9, giants: 0.85, agent: 0.5 };
 const HUMAN = { nile: 1, persia: 1, postmill: 1, quixote: 1, dutch: 0.7, china: 1, smeaton: 0.8, halladay: 1, brush: 0.4, lacour: 1, betz: 0.9, putnam: 0.6, gedser: 1, tvind: 0.3 };
 const SWING = { halladay: 0.64, betz: 0.6, gedser: 0.64 };
