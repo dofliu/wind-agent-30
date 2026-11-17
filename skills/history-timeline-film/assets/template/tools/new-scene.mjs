@@ -1,6 +1,8 @@
 // tools/new-scene.mjs — scaffold a chapter scene module and register it.
 //   node tools/new-scene.mjs <id> [--force]          design-square scene: runs on BOTH stages
 //   node tools/new-scene.mjs <id> --wide [--force]   native wide valley scene for the easel stage
+//   node tools/new-scene.mjs <id> --look <look>      a working skeleton already in an art medium, both
+//        stages (looks: engraving poster blueprint newsreel screen pixel ink fresco; tools/scene-looks.mjs)
 // Writes src/scenes/<id>.js from a skeleton that follows the scene contract and adds the
 // import + registry entry to src/scenes/index.js. Add the chapter record to
 // src/data/chapters.js yourself (id: '<id>'), then iterate with:
@@ -8,6 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { ROOT } from './serve.mjs';
+import { LOOKS, lookSkeleton } from './scene-looks.mjs';
 
 const id = process.argv[2];
 if (!id || !/^[a-z][a-z0-9_]*$/.test(id)) {
@@ -66,7 +69,7 @@ export function render(kit, ctx, p) {
   ctx.translate(L.x, L.y);
   ctx.scale(L.s, L.s);
 
-  // main subject: big, accurate, animated
+  // REPLACE: main subject: big, accurate, animated (this pinwheel is a placeholder)
   const hub = { x: 680, y: 330, r: 110 };
   kit.drawProp(ctx, hub, T * 2, { ...p.prop, time: T });
 
@@ -89,7 +92,7 @@ export function render(kit, ctx, p) {
 const wide = `${header}//
 // Layout: native easel valley — 1920x1080 canvas (p.W x p.H). The hill + painter + easel cover
 // the lower left (p.cover), the ruler + paper haze the top ~70 px; keep the key subject inside
-// p.safe ({ x: 760, y: 70, w: 1100, h: 890 }); horizon near p.horizonY (430), valley floor p.groundY (720).
+// p.safe ({ x: 760, y: 110, w: 1000, h: 830 }); horizon near p.horizonY (430), valley floor p.groundY (720).
 
 function paintBackground(kit, g, rng, w, h, p) {
   const sky = g.createLinearGradient(0, 0, 0, p.horizonY);
@@ -116,7 +119,7 @@ export function render(kit, ctx, p) {
   const T = p.isThumbnail ? p.chapterSec * 0.5 : p.rawLocalT;
   ctx.save();
   ctx.drawImage(kit.bake('${id}_bg_v1', p.W, p.H, (g, rng, w, h) => paintBackground(kit, g, rng, w, h, p)), 0, 0);
-  // main subject in the safe area, animated with T / p.beat
+  // REPLACE: main subject in the safe area, animated with T / p.beat (this pinwheel is a placeholder)
   const cx = p.safe.x + p.safe.w * 0.55;
   const hub = { x: cx, y: p.groundY - 260, r: 120 };
   ctx.strokeStyle = '#3a3530';
@@ -129,7 +132,13 @@ export function render(kit, ctx, p) {
   ctx.restore();
 }
 `;
-const skeleton = process.argv.includes('--wide') ? wide : square;
+const li = process.argv.indexOf('--look');
+const look = li > 0 ? process.argv[li + 1] : null;
+if (look && look !== 'plain' && !LOOKS[look]) {
+  console.log(`unknown look "${look}". Looks:\n${Object.entries(LOOKS).map(([k, v]) => `  ${k.padEnd(10)} ${v}`).join('\n')}`);
+  process.exit(1);
+}
+const skeleton = look && look !== 'plain' ? lookSkeleton(id, look, header) : process.argv.includes('--wide') ? wide : square;
 fs.writeFileSync(file, skeleton);
 const idxFile = path.join(ROOT, 'src/scenes/index.js');
 let idx = fs.readFileSync(idxFile, 'utf8');

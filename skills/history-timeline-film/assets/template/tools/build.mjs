@@ -10,12 +10,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { build } from 'esbuild';
+import { pathToFileURL } from 'node:url';
 import { ROOT } from './serve.mjs';
+import { syncGlyphs } from './glyphs.mjs';
 
 const DIST = path.join(ROOT, 'dist');
 // the film title for <title> (read from the config without executing the app)
-const cfgSrc = fs.readFileSync(path.join(ROOT, 'src/data/film.config.js'), 'utf8');
-const FILM_TITLE = ((cfgSrc.match(/title:\s*'([^']*)'/) || [])[1] || 'Film').replace(/[<&]/g, '');
+syncGlyphs(ROOT);
+const { FILM } = await import(pathToFileURL(path.join(ROOT, 'src/data/film.config.js')).href);
+const FILM_TITLE = String(FILM.title || 'Film').replace(/[<&]/g, '');
 fs.mkdirSync(DIST, { recursive: true });
 const css = fs.readFileSync(path.join(ROOT, 'public/style.css'), 'utf8');
 

@@ -16,7 +16,7 @@ warning, and `check_film` fails on that warning. Pick a character that has the a
 
 - Body: `skin, skinShade, hair, top, topShade, trousers, shoes`.
 - `hairStyle`: `'bob' | 'short' | 'bun' | 'ponytail'`.
-- `hat`: `'beret' | 'straw' | 'cap' | 'none'`, with `hatColor` and `hatBand`.
+- `hat`: `'beret' | 'straw' | 'cap' | 'none'`, with `hatColor` and `hatBand`. Each hat has its own default colours (beret red, straw `#e2c47c` with a brown band, cap blue); set `hatColor`/`hatBand` only to change them.
 - `scarf` (true/false), with `scarfColor` and `scarfStripe`.
 - Painting kit: `paletteWood, brushHandle, brushPaint, paints[5]`.
 - Bicycle: `frame, frameShade, metal, tire, rim, saddle, spokes`.

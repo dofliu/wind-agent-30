@@ -21,6 +21,7 @@ import { getStage } from './stages/index.js';
 import { getCharacter } from './characters/index.js';
 import { createAudioEngine } from './audio/engine.js';
 import { FILM } from './data/film.config.js';
+import { GLYPHS } from './data/glyphs.js';
 import { UI } from './data/i18n.js';
 import { STAGE_ID, CHARACTER_ID } from './data/staging.js';
 
@@ -65,7 +66,9 @@ export function renderPanelInto(ctx, chapterId, localT = CHAPTER_SEC / 2, riderL
 function allText() {
   const O = FILM.outro || {};
   const parts = [FILM.title, FILM.subtitle, FILM.quote, O.headline, O.summary, O.closing, O.credits, '《》·…「」，。、：；！？0123456789'];
-  for (const s of CHAPTERS) parts.push(s.title, s.caption, s.dateLabel, s.ruler, s.style, s.description || '', (s.facts || []).join(''), s.specs || '');
+  for (const s of CHAPTERS) parts.push(s.title, s.titleAlt || '', s.caption, s.dateLabel, s.ruler, s.style, s.styleAlt || '', s.description || '', (s.facts || []).join(''), s.specs || '');
+  // every non-ASCII glyph used in scene / stage code (tools/glyphs.mjs) + optional FILM.extraGlyphs
+  parts.push(GLYPHS, FILM.extraGlyphs || '');
   return Array.from(new Set(parts.join(''))).join('');
 }
 
@@ -107,6 +110,19 @@ export async function boot() {
     }
     const s = renderPanelInto(mainCtx, chapterId, localT, riderLocalX, opts);
     return { id: s.id, num: s.num };
+  };
+  /** QA: the stage's finished chapter card (easel: the painted board with its miniature), or false. */
+  window.renderCardFor = async (chapterId) => {
+    if (typeof stage.card !== 'function') return false;
+    const chapter = typeof chapterId === 'number' ? CHAPTERS[chapterId] : chapterById(chapterId);
+    const card = chapter && stage.card(chapter);
+    if (!card) return false;
+    mainCanvas.width = card.width;
+    mainCanvas.height = card.height;
+    mainCtx.setTransform(1, 0, 0, 1, 0, 0);
+    mainCtx.clearRect(0, 0, card.width, card.height);
+    mainCtx.drawImage(card, 0, 0);
+    return true;
   };
   window.captureFrameAt = async (t, mime = 'image/png', quality = 0.92) => {
     await window.renderAt(t);

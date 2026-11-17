@@ -65,7 +65,7 @@ the painter and the board that shows the chapter being painted. `p.actor = null`
 ```
  y  0 ┌───────────────────────── ruler + paper haze (top ~70 px) ─────────────────────────┐
       │  paper veil (upper left)                 ┌──────────── p.safe ───────────────┐    │
-  330 │ ┌easel+board┐                            │  x 760–1860, y 70–960             │    │
+  330 │ ┌easel+board┐                            │  x 760–1760, y 110–940            │    │
   430 │ │  painter  │ ─ ─ ─ ─ ─ horizonY 430 ─ ─ │  layout box (1000-unit design):   │ ─ ─│
   720 │ │           │ ─ ─ ─ ─ ─ groundY 720 ─ ─ ─│  x 840–1740, y 50–950 (s = 0.9)   │ ─ ─│
   760 │▓▓▓ hill crest ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓╲          └───────────────────────────────────┘    │
@@ -77,10 +77,10 @@ the painter and the board that shows the chapter being painted. `p.actor = null`
   (crest from y ≈ 760 at x 600 falling to the bottom edge at x ≈ 1110) — polygon `p.cover`;
   the top ~70 px (ruler + haze); a ragged 60–160 px paper fade on the other edges; a soft paper
   veil over the upper left.
-* Keep the key subject inside **`p.safe = { x: 760, y: 70, w: 1100, h: 890 }`**. Horizon near
+* Keep the key subject inside **`p.safe = { x: 760, y: 110, w: 1000, h: 830 }`** (clear of the ragged paper fade; `--guides` draws the fade). Horizon near
   **`p.horizonY = 430`**, valley-floor figures stand around **`p.groundY = 720`**.
 * The board's miniature is cut from a calm mid-chapter still: by default a wide band through
-  the layout box (`x 840–1740`, centred on y ≈ 527). Override per chapter with
+  the layout box (`x 840–1740`), placed where the picture varies most across x (the subject). Override per chapter with
   `chapter.easel = { crop: [x, y, w, h] }` (aspect ≈ 2.9 : 1). Optional `easel.ink`,
   `easel.dateInk`, `easel.seal` colours for the board text / seal.
 * No title cards in the valley: the board already shows date + title.
@@ -90,7 +90,16 @@ the painter and the board that shows the chapter being painted. `p.actor = null`
 
 ### Writing one scene for both stages
 
-Two ways, both shown by `node tools/new-scene.mjs <id>` (square, both stages) and
+**Fastest: a look skeleton** (`node tools/new-scene.mjs <id> --look <look>`; `new_film.mjs` already
+picked one per chapter from its medium). Looks: `engraving poster blueprint newsreel screen pixel
+ink fresco` (`tools/scene-looks.mjs`). The skeleton already reads as the medium on BOTH stages: baked
+background + textured ground band, a placeholder subject drawn with the medium's technique, a
+bar-3 beat, the restyled rider and the medium's overlay (film grain, CRT …). It draws on `p.W × p.H`
+directly: the subject goes in the focus box `F` (`p.safe` on easel, the panel above the road on
+gallery-ride) and stands on `p.groundY`. Replace the blocks marked `// REPLACE:` (check_film fails
+while any are left) and adjust `paintBackground()` to the setting.
+
+The other two ways, shown by `node tools/new-scene.mjs <id> --look plain` (square, both stages) and
 `node tools/new-scene.mjs <id> --wide` (native easel valley):
 
 1. **Design square** (what the demo scenes do): draw in a 1000 × 1000 design space and map it
@@ -126,7 +135,17 @@ Two ways, both shown by `node tools/new-scene.mjs <id>` (square, both stages) an
    Latin display faces (`kit.FONT.blackletter / poster / pixel …`) for Latin text only.
    No real brand logos or trademarks; generic period wording.
 5. **Leave ctx clean**: `ctx.save()/restore()`, reset `globalAlpha` / `globalCompositeOperation`.
+   **Never call `ctx.setTransform` / `resetTransform`**: ctx may arrive transformed (gallery
+   thumbnails, the easel push-in). Use `save` → `translate/scale/rotate` → `restore`.
 6. **Accuracy:** machines, tools, costumes follow the sources in `chapters.js`.
+7. **Thumbnails are a fixed frame**: when `p.isThumbnail`, draw a calm representative state that
+   does not depend on `p.rawLocalT`, `p.beat.pulse()` or anything else time-varying.
+8. **Negative time**: `p.rawLocalT` is negative while the panel slides in, and JS `%` keeps the
+   sign: use `((x % n) + n) % n` for loops; never pass a negative radius / size to `arc`.
+9. **Full-frame blits**: draw full-size baked layers unscaled at whole-pixel offsets
+   (~0.7 ms). A scaled or sub-pixel full-frame `drawImage` costs ~6 ms at 1920 × 1080.
+10. **Text glyphs**: any text is fine (tools/glyphs.mjs preloads every non-ASCII character used in
+    `src/`), but text built at runtime from data outside `src/` must go in `FILM.extraGlyphs`.
 
 ## 3. Composition
 
@@ -174,11 +193,29 @@ types in `src/kit/props.js`.
 `kit.vignette` (bake-time), `kit.wrapText`, `kit.FONT.{serif,sans,kai,mono,blackletter,
 engraving,garamond,didone,poster,pixel,terminal}`.
 
+### Medium helpers (`src/kit/media.js`, all on `kit`)
+
+| helper | when | what |
+|---|---|---|
+| `kit.paper(key, w, h, {color, grain, blotches, foxing, fibers, vignette, edgeDarken})` → canvas | bake | paper, parchment, plaster, card, newsprint |
+| `kit.halftoneShade(g, x, y, w, h, {cell, color, angle, maxR, tone(u,v), clipFn})` | bake | print dots sized by tone (poster skies, sun, shading) |
+| `kit.dots(ctx, {cell, r, color, angle, bg})` → CanvasPattern | frame | flat halftone screen as `fillStyle` |
+| `kit.stipple(g, x, y, w, h, {density, r, color, tone, seed})` | bake | stipple engraving, dust, spray |
+| `kit.hatch(g, {x, y, w, h, spacing, angle, color, width, cross, wobble, taper, clipFn})` | both | parallel / cross hatching inside the current clip (rebuild your path afterwards) |
+| `kit.wash(g, x, y, w, h, color, {alpha, layers, rough, rim, granulate, shape: 'ellipse'/'rect'/'ridge', peaks})` | bake | watercolour / ink-wash blots, mountain ranges |
+| `kit.inkLine(ctx, pts, {width, color, taper: true/'start'/'end', pressure, alpha})` | frame | tapered brush / pen stroke |
+| `kit.emboss(ctx, pathFn, {fill, light, dark, depth})` | frame | relief, clay, coins, embossed card |
+| `kit.misregister(ctx, (ctx, color, i) => …, {colors, offsets})` | frame | 2–3 ink screen print off register |
+| `kit.glow(ctx, x, y, r, color, alpha)` | frame | additive glow sprite (lamps, neon, screens) |
+| `kit.scanlines(ctx, w, h, {gap, alpha, roll, T})` / `kit.crt(ctx, w, h, T, {tint, vignette, flicker})` | frame | CRT / terminal / HUD screens (draw last) |
+| `kit.filmLook(ctx, w, h, T, {grain, flicker, scratches, dust, vignette, sepia})` + `kit.gateWeave(T)` | frame | newsreel / silent film (overlay last; translate the picture by the weave) |
+| `kit.pixelate(ctx, key, w, h, cell, g => …)` | frame | pixel art: draw normally into `g`, it comes out in hard pixels |
+
 ## 6. Checking your work
 
 ```bash
 node tools/validate.mjs                                         # config / chapters / registry
-node tools/shot.mjs panel <id> 0.5,4,7.5 out/<id> --timing      # scene stills + perf
+node tools/shot.mjs panel <id> 0.5,4,7.5 out/<id> --timing      # scene stills + perf (out/<id> is a file PREFIX -> out/<id>_lt4.png)
 node tools/shot.mjs panel <id> 4 out/<id>_thumb --thumb --x 500 # outro thumbnail
 node tools/shot.mjs film <t0-0.4>,<t0+4>,<t1-0.2> out/<id>_film # in context, incl. frame crossings
 node tools/sheet.mjs                                            # every chapter at 3 moments

@@ -61,7 +61,8 @@ claim" entry, and that no `TODO` remains.
 | anecdotes as fact | 「據說」/「相傳」, or leave them out |
 
 - **Strong words** (`最早 / 第一 / 唯一 / 首創 / 發明 / first / invented / largest`) are listed by check_film for re-checking. They are allowed when the source says so.
-- **Brands and logos:** describe generically (「一家丹麥製造商」, 「美國太空總署」 is a public agency and fine). Never draw a real logo.
+- **Company and brand names in TEXT are fine when they are the history** (台積電, 聯電, RCA, Bell Labs in a semiconductor or solar history): name them in captions, descriptions and facts, with sources. What is forbidden is drawing **logos, trademarks and product trade dress** in scenes: draw a generic building, wafer or device, and use a plain sign text if a sign is needed. For incidental products, describe generically (「一家丹麥製造商」).
+- **Closing the strong-words warning:** after checking a strong word against its source, add a line to that chapter's fact-sheet section: `- **Strong words justified:** 第一 — 官方說法，畫面上寫成「官方稱…」 (source: …)`. check_film then stops warning about the words that line names.
 - **Living people:** stick to public, documented roles.
 
 ## 5. Writing the chapter text (chapters.js)

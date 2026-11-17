@@ -7,7 +7,10 @@
 //   node tools/shot.mjs panel tablet 4 out/tablet --thumb   render as an outro thumbnail
 //   node tools/shot.mjs film 10 out/f.png --staging easel+person   another stage/character (also --stage / --character)
 //   node tools/shot.mjs panel tablet 4 out/t --stage easel --guides  scene canvas with the stage's safe-area guides
-//   add --timing to print average render time per frame (perf budget: < 12 ms per panel)
+//   add --timing to print average render time per frame (perf budget: < 12 ms per panel, GPU-synced)
+//
+// <out> is a FILE PREFIX, not a directory: `panel kepz 0.5,4 out/kepz` writes out/kepz_lt0.5.png and
+// out/kepz_lt4.png; a single time with an out ending in .png writes exactly that file.
 import fs from 'node:fs';
 import path from 'node:path';
 import { openRenderHost, grabCanvas, stagingArgs } from './browser.mjs';
@@ -54,10 +57,19 @@ try {
     if (flags.has('--timing')) {
       const ms = await page.evaluate(async (i) => {
         // warm-up (bakes caches), then time 60 frames across the era
+        // canvas work is deferred (GPU command buffer): read one pixel back after every frame
+        // so the timer measures the real drawing cost, not just command submission
         const cs = window.__FILM_INFO__.chapterSec;
+        const c = document.querySelector('#canvas-host canvas');
+        const sg = Object.assign(document.createElement('canvas'), { width: 1, height: 1 }).getContext('2d', { willReadFrequently: true });
+        const sync = () => (sg.drawImage(c, 0, 0, 1, 1, 0, 0, 1, 1), sg.getImageData(0, 0, 1, 1));
         await window.renderPanelAt(i, 1);
+        sync();
         const t0 = performance.now();
-        for (let k = 0; k < 60; k++) await window.renderPanelAt(i, (k / 60) * cs);
+        for (let k = 0; k < 60; k++) {
+          await window.renderPanelAt(i, (k / 60) * cs);
+          sync();
+        }
         return (performance.now() - t0) / 60;
       }, id);
       console.log(`timing: ${ms.toFixed(2)} ms / panel frame (budget < 12 ms)`);
@@ -68,9 +80,16 @@ try {
       const info = window.__FILM_INFO__;
       await window.renderAt(info.introSec + 1);
       for (let k = 0; k < info.chapters.length; k++) await window.renderAt(info.chapters[k].t0 + 1); // warm bakes
+      const c = document.querySelector('#canvas-host canvas');
+      const sg = Object.assign(document.createElement('canvas'), { width: 1, height: 1 }).getContext('2d', { willReadFrequently: true });
+      const sync = () => (sg.drawImage(c, 0, 0, 1, 1, 0, 0, 1, 1), sg.getImageData(0, 0, 1, 1));
+      sync();
       const t0 = performance.now();
       const span = info.outroStart - info.introSec;
-      for (let k = 0; k < 60; k++) await window.renderAt(info.introSec + (k / 60) * span);
+      for (let k = 0; k < 60; k++) {
+        await window.renderAt(info.introSec + (k / 60) * span);
+        sync();
+      }
       return (performance.now() - t0) / 60;
     });
     console.log(`timing: ${ms.toFixed(2)} ms / film frame`);

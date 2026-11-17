@@ -12,6 +12,18 @@ import path from 'node:path';
 import { openRenderHost } from './browser.mjs';
 
 const args = process.argv.slice(2);
+if (args.includes('--help') || args.includes('-h')) {
+  console.log(`node tools/render.mjs [options]          render the film to MP4 (H.264, + AAC with --audio)
+  --out out/film.mp4     output file
+  --audio <wav>          mux this soundtrack (make it first: node tools/render-audio.mjs -> out/soundtrack.wav)
+  --from 0 --to <sec>    render only a time range (clips; default the whole film)
+  --fps 30               frame rate
+  --scale 1              output scale (0.5 = 960x540 preview, about 2x faster)
+  --jpeg                 pipe JPEG frames instead of PNG (faster, near-identical quality)
+  --staging s+c          another stage/character (also --stage / --character)
+Typical: node tools/render-audio.mjs && node tools/render.mjs --audio out/soundtrack.wav --jpeg`);
+  process.exit(0);
+}
 const arg = (n, d) => {
   const i = args.indexOf(n);
   return i >= 0 ? args[i + 1] : d;

@@ -22,7 +22,9 @@ scripts/new_film.mjs       scaffold a project from options
 scripts/check_film.mjs     run every QA gate, print a pass/fail table, list images to look at
 references/                read when the step says so (each is self-contained)
   scene-contract.md  stages.md  characters.md  music-presets.md
-  content-research.md  qa-checklist.md  art-media.md  examples/ (4 reference scenes)
+  content-research.md  qa-checklist.md  art-media.md
+  examples/  4 reference scenes + spec-example.json (a complete scaffold spec)
+  gallery/   stills from the reference film and from trial films (what to aim for)
 ```
 
 Requirements: Node 20+, Playwright with Chromium (`require('playwright')` must resolve), and ffmpeg for MP4.
@@ -88,15 +90,18 @@ node <skill>/scripts/new_film.mjs --dir <project> --title "腳踏車簡史" --su
 ```
 
 This does the following:
-- copies the template;
+- copies the template (without the demo scenes; `--demo` keeps the working 3-chapter demo instead);
 - writes `film.config.js` (title, staging, BPM, bars, music settings);
-- writes `chapters.js` with one stub per chapter, with the medium, palette, frame and preset pre-filled from the year;
-- writes one scene skeleton per chapter (square on gallery-ride, wide valley on easel), registered in `src/scenes/index.js`;
+- writes `chapters.js` with one record per chapter; the medium (with its own palette, frame and scene look) and preset are pre-filled from the year, and neighbours never share a medium or preset;
+- writes one **look skeleton** per chapter (`src/scenes/<id>.js`): a working scene already in the chapter's medium on both stages;
 - writes `research/fact-sheet.md` and `film.options.json`;
 - runs `validate`.
 
-`--demo` copies the working 3-chapter demo instead, which is useful to see the engine run first.
-`--spec` example: `{"title":"…","staging":"easel+person","chapters":[{"id":"draisine","year":1817,"dateLabel":"1817","title":"德萊斯滑行車","preset":"string-quartet"}]}`.
+**Best: write the plan as one `--spec` JSON.** Chapter records take every `chapters.js` field (caption,
+description, facts, sources, style, palette …) plus `year`, `medium`, `preset`, `look` and the fact-sheet
+fields `claim`, `when`, `visual`, `doNotClaim`, `hedged`, `justified`. A complete spec leaves no content
+TODO. Copy `references/examples/spec-example.json`. The scaffold prints each chapter's medium with its
+effort rating (● simple … ●●●); for low effort, swap ●●● media via `"medium"` (ids listed in `new_film.mjs --help`).
 
 Check that it runs: `cd <project> && node <skill>/scripts/check_film.mjs . --draft --quick`
 (stubs render as simple skeleton scenes, and content gates show WARN).
@@ -106,7 +111,7 @@ Check that it runs: `cd <project> && node <skill>/scripts/check_film.mjs . --dra
 Edit `src/data/film.config.js`:
 - the title, subtitle (plus `subtitleAlt` in English) and quote;
 - the `outro` lines: headline, summary, closing, credits;
-- `character.colors` and `hat`;
+- `character.colors` and `hat` (each hat has its own default colour);
 - `palette` (dark museum wall by default);
 - `fonts` (Google Fonts families; the defaults cover Traditional Chinese and the Latin display faces).
 
@@ -126,24 +131,28 @@ Run `node tools/validate.mjs` after editing.
 Read `references/scene-contract.md`, then the chapter's entry in `references/art-media.md`.
 For a quality reference, read one example in `references/examples/` (gedser = poster,
 putnam = newsreel, china = ink, california = synthwave) and the demo scenes in
-`assets/template/src/scenes/` (tablet, quill, ballpoint: written to the current contract).
+`<skill>/assets/template/src/scenes/` (tablet, quill, ballpoint: written to the current contract; the scaffold leaves them out of your project, so read them in the skill).
 
-For each chapter, edit `src/scenes/<id>.js`:
-1. Fill in the header comment: medium, subject, story beat.
-2. Bake the background in the medium (paper, plaster, screen …) with `kit.bake('<id>_bg_v1', …)`.
-3. Draw the **main subject**: big, accurate per the fact sheet's visual facts, and animated with `p.rawLocalT`.
-4. Add 3 depth layers, plus **one story beat in bar 3** (`2·barSec … 3·barSec`).
-5. On gallery-ride, draw the rider re-styled into the medium: `p.actor.draw(ctx, p.actor.rig(), STYLE)`.
-6. Check it:
+Each skeleton already has the medium's background, textured ground, overlay and rider style, a
+placeholder subject (a tower with a wheel) and a bar-3 beat. For each chapter, edit `src/scenes/<id>.js`:
+1. Fill in the header comment (`<fill in …>`): medium tells, subject, story beat.
+2. Adjust `paintBackground()` to the chapter's setting (it is baked once).
+3. Replace every `// REPLACE:` block: the **main subject** (big, accurate per the fact sheet's visual facts,
+   animated with `T`) and **one story beat in bar 3**. Use the medium helpers on `kit` (`paper`, `hatch`,
+   `halftoneShade`, `dots`, `misregister`, `wash`, `inkLine`, `emboss`, `glow`, `crt`, `filmLook`,
+   `pixelate`; SCENE_GUIDE.md "Medium helpers"). Add a foreground layer for depth.
+4. Gallery-ride: the rider sweeps y 470–700 across the panel; keep text and small details above y ≈ 450.
+   Easel: keep the subject in `p.safe`; set `chapter.easel.crop` so the board miniature shows it (stages.md).
+5. Check it (`out/<id>` is a file prefix: it writes `out/<id>_lt4.png` …):
    ```bash
    node tools/shot.mjs panel <id> 0.5,4,7.5 out/<id> --timing     # then LOOK at the PNGs
-   node tools/shot.mjs panel <id> 4 out/<id>_e --stage easel --guides   # easel safe area
-   node <skill>/scripts/check_film.mjs . --quick --only <id>
+   node tools/shot.mjs panel <id> 4 out/<id>_e --stage easel --guides   # easel: safe area + paper fade
+   node <skill>/scripts/check_film.mjs . --quick --draft --only <id>    # strip incl. the in-film frame + board
    ```
 
 Hard rules:
 - deterministic (no `Math.random`, `Date` or `performance.now`; use `kit.makePRNG`, `kit.hash11`, `kit.noise*`);
-- < 12 ms per scene frame;
+- < 12 ms per scene frame (measured GPU-synced); never `ctx.setTransform`; thumbnails are a fixed frame;
 - no external assets;
 - Traditional Chinese text;
 - no real logos;
@@ -176,7 +185,11 @@ The gates are:
 - a whole-film console sweep, determinism, the player page, the contact sheet;
 - audio `check-audio --determinism`.
 
-Then **look at every image it lists** (`out/qa/<staging>/scene_*.jpg`, `film_keyframes.jpg`,
+Strong-claim words stay a WARN until the chapter's fact-sheet section has a
+`- **Strong words justified:** <words> — <why / source>` line.
+
+Then **look at every image it lists** (`out/qa/<staging>/scene_*.jpg` — each strip ends with the chapter
+`in film` and, on easel, the painted `board / card` —, `film_keyframes.jpg`,
 `sheet.png`, `player.png`) using the Read tool, and go through the manual list in
 `references/qa-checklist.md`: medium tells, subject accuracy, story beat, nothing hidden by the
 frame or the easel, legible intro and outro. Fix, re-run, and look again. A film is done when the table
@@ -188,8 +201,10 @@ has no FAIL and you have looked at the images.
 npm install            # once, for esbuild (or new_film --node-modules <dir with esbuild>)
 node <skill>/scripts/check_film.mjs . --build --mp4      # build + load dist pages + short MP4 clip
 node tools/render-audio.mjs                               # out/soundtrack.wav
-node tools/render.mjs --audio out/soundtrack.wav          # out/film.mp4, full film 1920x1080 30 fps
+node tools/render.mjs --audio out/soundtrack.wav --jpeg   # out/film.mp4, full film 1920x1080 30 fps
 ```
+`tools/render.mjs` flags (`--help`): `--out <file>`, `--audio <wav>`, `--from/--to <sec>`, `--scale 0.5`, `--jpeg`, `--fps`, `--staging`.
+A 1-minute film renders in about 2 minutes.
 
 - `dist/index.html` (player), `dist/gallery.html` and `dist/render.html` are single files that work offline except for Google Fonts.
 - **Publishing as an Artifact (optional):** offer it when the user wants a link. Publish `dist/artifact/index.html` with `files: {"gallery.html": "dist/artifact/gallery.html"}`.
@@ -214,15 +229,15 @@ stagings, characters, music and QA are already done. Spend effort where it shows
 | new stage / character / prop | no | yes (stages.md, characters.md) |
 | QA | yes: `check_film` + looking at the images | — |
 
-**Low-effort recipe per scene (about 60–120 lines):**
-1. a baked background in the medium;
-2. one big subject built from simple shapes and colours from the chapter palette;
-3. one moving part;
-4. one bar-3 beat;
-5. the rider re-styled with `silhouette`, `wire` or flat colours;
-6. a quick visual check.
+**Low-effort recipe per scene (keep the look skeleton, change ~40–80 lines):**
+1. set the setting in `paintBackground()` (keep the medium's texture calls);
+2. replace the placeholder with one big, recognisable subject in the medium's technique (palette colours);
+3. one moving part and one bar-3 beat;
+4. keep the subject clear of the rider band / inside `p.safe`; easel: set `easel.crop`;
+5. look at the strip (`in film` + `board` cells).
 
-This passes every gate. Upgrade the scenes the user cares about most afterwards.
+This passes every gate and reads as the medium (calibrate against `references/gallery/`). Then spend extra effort on the scenes the user
+cares about most: more detail on the subject, a foreground layer, a second motion.
 
 ## Parallel scene authoring (when subagents are available)
 
@@ -256,7 +271,9 @@ Scenes are independent files with a fixed contract, so they parallelise well.
 | `Cannot find module 'playwright'` | install it (`npm i -D playwright && npx playwright install chromium`), or set `NODE_PATH` to a global install |
 | placeholder card in a chapter | module missing, thrown, or `meta.stages` excludes the stage; the console names it (`[scene-error:<id>]`) |
 | perf FAIL | something static is drawn per frame: bake it; remove `shadowBlur`, `filter` and per-frame `getImageData` |
-| determinism FAIL | state kept between frames (a PRNG advanced across calls, arrays mutated) |
+| determinism FAIL | state kept between frames (a PRNG advanced across calls, arrays mutated); outro-only: a thumbnail that depends on time. The message names the case |
+| text in the first frame uses a fallback font | glyphs are synced by every tool; run `node tools/glyphs.mjs` after editing scenes outside the tools |
+| `<title>` of a built page is wrong | it comes from `FILM.title`; rebuild |
 | fonts look wrong in the first frame | wait for boot (`__FILM_READY__`); the tools already do |
 | build fails: esbuild | `npm install` in the project, or `new_film --node-modules <dir>` |
 | easel subject hidden | move it into `p.safe`; check with `--guides` |

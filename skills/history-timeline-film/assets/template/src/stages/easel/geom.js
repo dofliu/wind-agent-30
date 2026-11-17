@@ -12,8 +12,11 @@ export const SCENE = {
   H: 1080,
   horizonY: 430, // where a wide landscape's horizon reads best
   groundY: 720, // valley floor reference line (figures standing in the mid-distance)
-  /** Key-subject safe area: never covered by the hill / painter / easel / ruler. */
-  safe: { x: 760, y: 70, w: 1100, h: 890 },
+  /**
+   * Key-subject safe area: never covered by the hill / painter / easel / ruler, and clear of the
+   * ragged paper fade (top ~70-170 px, right ~70-180 px, bottom ~40-100 px vary along the edge).
+   */
+  safe: { x: 760, y: 110, w: 1000, h: 830 },
   /** Where a 1000x1000 design (a gallery-ride panel) maps into the scene canvas. */
   layout: { x: 840, y: 50, s: 0.9 },
 };

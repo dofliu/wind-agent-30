@@ -21,12 +21,12 @@ The command exits 1 if any gate fails, prints a markdown table, and lists the im
 | presets | every music preset renders notes | only fails if `src/audio/presets.js` was edited |
 | content | no `TODO`, description ≥ 40 chars, ≥ 2 facts, a real source URL, a style per chapter | fill in from the fact sheet |
 | zh-Hant | no simplified characters (FAIL); mainland terms and ASCII punctuation in CJK (WARN) | replace characters and terms (content-research.md §6) |
-| facts | `research/fact-sheet.md` has a section per chapter with a URL and "Do not claim"; strong-claim words listed (WARN) | re-check each listed claim against its source and hedge it if needed |
-| scenes | every chapter has its own module, not the untouched skeleton, and `meta.stages` includes the stage | write the scene |
-| render | each chapter renders at before / start / mid / end / after plus a thumbnail, and none is blank | check the strip image `scene_NN_<id>.jpg` |
-| perf | each scene < 12 ms per frame (`--budget` to change) | bake static layers, remove per-frame blur, `getImageData` and big loops |
+| facts | `research/fact-sheet.md` has a section per chapter with a URL and "Do not claim"; strong-claim words listed (WARN) unless that section has a `- **Strong words justified:** …` line naming them | re-check each claim against its source, hedge it, then add the justified line |
+| scenes | every chapter has its own module, no `// REPLACE:` placeholder or `<fill in` header left, and `meta.stages` includes the stage | write the subject and beat |
+| render | each chapter renders at before / start / mid / end / after plus a thumbnail, and none is blank; the strip also shows the chapter `in film` (composited by the stage) and, on easel, the finished `board / card` | check the strip image `scene_NN_<id>.jpg` |
+| perf | each scene < 12 ms per frame, GPU-synced (one pixel read back per frame, so the number is the real drawing cost) (`--budget` to change) | bake static layers; blit full-frame layers unscaled at whole pixels; remove per-frame blur, `getImageData` and big loops |
 | console | sweeping the whole film every 0.5 s logs no console errors or warnings | the message names the scene (`[scene-error:<id>]`) |
-| determinism | same t gives the same pixels (same page after the sweep, and a fresh page) | remove state carried between frames; recreate PRNGs from fixed seeds |
+| determinism | same t gives the same pixels (same page after the sweep, and a fresh page) | remove state carried between frames; recreate PRNGs from fixed seeds. Outro-only differences: a thumbnail depends on time, or glyphs loaded late (the message says which) |
 | player | `index.html` boots clean | usually a config typo |
 | sheet | contact sheet written without console errors | — |
 | audio | `check-audio --determinism`: right duration, no silent chapter, no NaN, peak ≤ −0.2 dBFS, identical hashes with workers, workers again and the main thread | unusual BPM or bar counts: check `music` recipes |
@@ -46,7 +46,9 @@ For **each scene strip** (`scene_NN_<id>.jpg`):
 - [ ] The before and after frames are alive, not empty. The story beat is visible in mid → end.
 - [ ] No modern title cards in the scene. No text clipped by the frame or the easel cover.
 - [ ] Gallery-ride: the rider is on the road, re-styled into the medium, and not floating.
-- [ ] Easel: the subject is inside the safe area and not hidden behind the hill or painter (`--guides`).
+- [ ] Easel: the subject is inside the safe area and not hidden behind the hill, painter or paper fade (`in film` cell; `--guides`).
+- [ ] Easel: the `board / card` miniature shows the subject, not an empty band (tune `chapter.easel.crop`, stages.md).
+- [ ] Gallery-ride: the rider does not hide the subject's key detail or any text; the band below the road is textured, not flat.
 
 For the **film keyframes** (`film_keyframes.jpg`):
 - [ ] The intro title, subtitle and quote are legible and nothing overlaps.

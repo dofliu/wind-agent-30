@@ -11,20 +11,32 @@
 //
 // Options (all optional except --dir):
 //   --dir <path>                 target directory (must be empty or absent; --force to reuse)
-//   --spec <file.json>           JSON with any of the options below (camelCase) + "chapters": [ {...} ]
-//                                (chapter fields as in chapters.js; extra "preset" = music.preset)
+//   --spec <file.json>           JSON with any of the options below (camelCase) + "chapters": [ {...} ].
+//                                Chapter records take EVERY chapters.js field (dateLabel, ruler, title,
+//                                titleAlt, caption, description, facts, specs, sources, style, styleAlt,
+//                                palette, frame, prop, music, scene, easel) plus scaffold-only fields:
+//                                year, preset (= music.preset), medium (a MEDIA id below or its name),
+//                                look, and the fact-sheet fields claim, when, visual, doNotClaim, hedged,
+//                                justified. A complete spec scaffolds a film with no TODO left except
+//                                the scenes. Example: <skill>/references/examples/spec-example.json
+//   media ids: fresco blackfigure miniature inkwash manuscript tapestry woodcut delft copperplate map
+//              woodengraving chromolith patent blueprint newsreel deco wpa midcentury lignecaire
+//              screenprint synthwave gui pixel infographic satellite hud iso watercolour
 //   --title "..."  --subtitle "..."  --subtitle-alt "..."  --quote "..."
 //   --lang zh-Hant|en            UI + placeholder language (default zh-Hant, Taiwan usage)
 //   --staging <stage>+<char>     or --stage gallery-ride|easel  --character spoonbill|person
 //                                (default gallery-ride+spoonbill; easel defaults to person)
-//   --hat beret|straw|cap|none   person's hat (default beret)
+//   --hat beret|straw|cap|none   person's hat (default beret; each hat has its own default colour)
 //   --chapters N                 number of chapters (default 6) — or --ids a,b,c (scene/chapter ids)
 //   --years 1900,1950,...        representative year per chapter (drives the auto medium + music)
 //   --bpm 120  --bars-per-chapter 4 | --seconds-per-chapter 8  --intro-bars 3  --outro-bars 6
 //   --presets p1,p2,...|auto     music preset per chapter (default auto: by year, else a contrast cycle)
 //   --intro wind-chimes|pad-swell|none  --outro relay-finale|pad-swell|none  --bed wind|breeze|none
 //   --transpose <semitones>
-//   --scene-kind square|wide     skeleton type (default: square on gallery-ride, wide on easel)
+//   --look <look>|plain          scene skeleton look for every chapter (default: per chapter, from its
+//                                medium: engraving poster blueprint newsreel screen pixel ink fresco);
+//                                plain = the bare square / wide skeleton (--scene-kind)
+//   --scene-kind square|wide     bare skeleton type with --look plain (default: square on gallery-ride, wide on easel)
 //   --demo                       keep the 3-chapter demo (書寫的旅程) as-is (only staging / lang /
 //                                bpm options are applied) — a known-good project for smoke tests
 //   --node-modules <path>        symlink an existing node_modules (needs esbuild, for build.mjs)
@@ -101,27 +113,67 @@ function copyDir(src, dst) {
 copyDir(TEMPLATE, DIR);
 const P = (...a) => path.join(DIR, ...a);
 
-// ---------------------------------------------------------------------------- era table
-// Auto suggestions by representative year: medium (style), frame, palette, music preset.
-// The author is expected to refine them (references/art-media.md, references/music-presets.md).
+// ---------------------------------------------------------------------------- media + era table
+// Auto suggestions by representative year: medium (style + its own palette + frame + scene look),
+// music preset. The author is expected to refine them (references/art-media.md, music-presets.md).
+// rating: 1 = ● simple, 2 = ●● moderate, 3 = ●●● rich (art-media.md). look = tools/scene-looks.mjs.
+const MEDIA = {
+  fresco: { zh: '古代壁畫浮雕', en: 'Ancient fresco / relief', frame: 'stone', look: 'fresco', rating: 1, palette: ['#e8d6b0', '#b5523b', '#1d6b73', '#d9a441', '#2a1d14'] },
+  blackfigure: { zh: '陶器黑繪', en: 'Black-figure pottery', frame: 'stone', look: 'fresco', rating: 2, palette: ['#d9824a', '#1b1410', '#f0d9b5', '#8a3b1e', '#3a2418'] },
+  miniature: { zh: '古典細密畫', en: 'Classical miniature painting', frame: 'gilt', look: 'poster', rating: 3, palette: ['#efe2c4', '#1d4e89', '#b23a2b', '#c99a2e', '#2a2017'] },
+  inkwash: { zh: '水墨畫', en: 'Ink wash painting', frame: 'mount', look: 'ink', rating: 2, palette: ['#efe8d8', '#1c1c1c', '#6b7b6e', '#b8322a', '#a89f8a'] },
+  manuscript: { zh: '中世紀泥金手抄本', en: 'Illuminated manuscript', frame: 'gilt', look: 'poster', rating: 2, palette: ['#f1e4c3', '#b32d2a', '#1f3f8f', '#c99a2e', '#2a2017'] },
+  tapestry: { zh: '掛毯刺繡', en: 'Embroidered tapestry', frame: 'wood', look: 'poster', rating: 2, palette: ['#e9dcc0', '#8a2f24', '#2f4f6f', '#c9a23a', '#3a2a1e'] },
+  woodcut: { zh: '木刻版畫', en: 'Woodcut print', frame: 'paper', look: 'engraving', rating: 1, palette: ['#efe6d2', '#1b1a18', '#8a3b2a', '#c9b48a', '#4a443a'] },
+  delft: { zh: '台夫特藍陶磚', en: 'Delftware tile', frame: 'tile', look: 'ink', rating: 1, palette: ['#f4f3ee', '#1f3f8f', '#5b7fc0', '#a9bde0', '#24324f'] },
+  copperplate: { zh: '銅版雕刻科學插圖', en: 'Copperplate engraving', frame: 'paper', look: 'engraving', rating: 2, palette: ['#f2ead8', '#1b1a18', '#7a3b2a', '#a89a7a', '#4a443a'] },
+  map: { zh: '銅版地圖', en: 'Copperplate map', frame: 'paper', look: 'engraving', rating: 2, palette: ['#efe2c4', '#2a2017', '#6f8f9f', '#c9a45c', '#8a3b2a'] },
+  woodengraving: { zh: '維多利亞木口版畫', en: 'Victorian wood engraving', frame: 'paper', look: 'engraving', rating: 2, palette: ['#efe9dc', '#151413', '#8a3b2a', '#b9ad96', '#2d2a26'] },
+  chromolith: { zh: '彩色石版印刷', en: 'Chromolithograph', frame: 'wood', look: 'poster', rating: 2, palette: ['#f0e2c0', '#a8322d', '#2f5d50', '#d9a03f', '#3a2a20'] },
+  patent: { zh: '專利圖', en: 'Patent drawing', frame: 'paper', look: 'engraving', rating: 1, palette: ['#f7f4ea', '#1a1a1a', '#8a3b2a', '#c8c0ad', '#2e2b27'] },
+  blueprint: { zh: '工程藍圖', en: 'Engineering blueprint', frame: 'steel', look: 'blueprint', rating: 1, palette: ['#1f4e8c', '#e8f1ff', '#9cc3e6', '#f2d16b', '#0f2a4d'] },
+  newsreel: { zh: '黑白新聞片', en: 'Black-and-white newsreel', frame: 'film', look: 'newsreel', rating: 2, palette: ['#e8e2d2', '#9a958a', '#55524b', '#1e1d1b', '#c7c0ad'] },
+  deco: { zh: '裝飾藝術海報', en: 'Art Deco poster', frame: 'poster', look: 'poster', rating: 2, palette: ['#efe3c8', '#1d2b3a', '#c9a23a', '#b23a2b', '#2f6b6b'] },
+  wpa: { zh: '公共工程海報', en: 'Public-works poster', frame: 'poster', look: 'poster', rating: 1, palette: ['#efe2c2', '#c4572e', '#2b4a6f', '#e0b04a', '#2a2420'] },
+  midcentury: { zh: '世紀中期現代主義海報', en: 'Mid-century modernist poster', frame: 'poster', look: 'poster', rating: 1, palette: ['#f2ebdc', '#c8102e', '#1d3557', '#f1c40f', '#2a2a2a'] },
+  lignecaire: { zh: '漫畫清線風格', en: 'Ligne claire comic', frame: 'paper', look: 'poster', rating: 2, palette: ['#f6f0e0', '#d8483b', '#3f7cb5', '#f2c94c', '#1a1a1a'] },
+  screenprint: { zh: '絲網印刷海報', en: 'Screen-printed poster', frame: 'poster', look: 'poster', rating: 1, palette: ['#f3e3c3', '#e85d2a', '#2a6f97', '#f2b134', '#2b2b2b'] },
+  synthwave: { zh: '合成器浪潮霓虹', en: 'Synthwave neon', frame: 'screen', look: 'screen', rating: 2, palette: ['#16121f', '#ff4f9a', '#35d0ff', '#ffd166', '#5b2a86'] },
+  gui: { zh: '早期電腦介面', en: 'Early GUI / CRT terminal', frame: 'screen', look: 'screen', rating: 1, palette: ['#0c140c', '#39ff88', '#c8ffd8', '#ffb347', '#14351f'] },
+  pixel: { zh: '像素遊戲', en: 'Pixel art', frame: 'screen', look: 'pixel', rating: 1, palette: ['#c9c5bb', '#3f8fd2', '#2e7d32', '#f2c14e', '#1d1d1d'] },
+  infographic: { zh: '扁平資訊圖表', en: 'Flat infographic', frame: 'poster', look: 'poster', rating: 1, palette: ['#f4f1ea', '#ff5a5f', '#087e8b', '#f2c14e', '#3c3c3c'] },
+  satellite: { zh: '衛星地圖', en: 'Satellite map', frame: 'screen', look: 'screen', rating: 2, palette: ['#0e1a24', '#7fd1ae', '#f2c14e', '#ff7a59', '#20384a'] },
+  hud: { zh: '數位線框 HUD', en: 'Wireframe HUD', frame: 'screen', look: 'screen', rating: 2, palette: ['#07131f', '#39d0ff', '#9effc8', '#ffb347', '#1c3b57'] },
+  iso: { zh: '等角 3D 低多邊形', en: 'Isometric low-poly 3D', frame: 'screen', look: 'poster', rating: 2, palette: ['#eef1f5', '#f08a5d', '#3a4a6b', '#6ec6ca', '#2b2d42'] },
+  watercolour: { zh: '水彩速寫', en: 'Watercolour sketch', frame: 'mount', look: 'ink', rating: 1, palette: ['#f6f1e6', '#2c2721', '#5b8c9a', '#c8553d', '#a9c4a0'] },
+};
+// a = default medium, b = alternative used when the neighbour already has a's medium / preset
 const ERA = [
-  { to: -500, preset: 'ancient-harp', style: ['古代壁畫浮雕', 'Ancient fresco / relief'], frame: 'stone', palette: ['#e8d6b0', '#b5523b', '#1d6b73', '#d9a441', '#2a1d14'], alt: { preset: 'santur-dastgah', style: ['陶器黑繪', 'Black-figure pottery'], frame: 'stone' } },
-  { to: 600, preset: 'santur-dastgah', style: ['古典細密畫', 'Classical miniature painting'], frame: 'gilt', palette: ['#efe2c4', '#1d4e89', '#b23a2b', '#c99a2e', '#2a2017'], alt: { preset: 'guzheng-pentatonic', style: ['水墨畫', 'Ink wash painting'], frame: 'mount' } },
-  { to: 1450, preset: 'medieval-recorder', style: ['中世紀泥金手抄本', 'Illuminated manuscript'], frame: 'gilt', palette: ['#f1e4c3', '#b32d2a', '#1f3f8f', '#c99a2e', '#2a2017'], alt: { preset: 'flamenco-guitar', style: ['掛毯刺繡', 'Embroidered tapestry'], frame: 'wood' } },
-  { to: 1650, preset: 'baroque-harpsichord', style: ['木刻版畫', 'Woodcut print'], frame: 'paper', palette: ['#efe6d2', '#1b1a18', '#8a3b2a', '#c9b48a', '#4a443a'], alt: { preset: 'flamenco-guitar', style: ['台夫特藍陶磚', 'Delftware tile'], frame: 'tile' } },
-  { to: 1800, preset: 'string-quartet', style: ['銅版雕刻科學插圖', 'Copperplate engraving'], frame: 'paper', palette: ['#f2ead8', '#1b1a18', '#7a3b2a', '#a89a7a', '#4a443a'], alt: { preset: 'baroque-harpsichord', style: ['銅版地圖', 'Copperplate map'], frame: 'paper' } },
-  { to: 1880, preset: 'victorian-musicbox', style: ['彩色石版印刷', 'Chromolithograph'], frame: 'wood', palette: ['#f0e2c0', '#a8322d', '#2f5d50', '#d9a03f', '#3a2a20'], alt: { preset: 'frontier-banjo', style: ['維多利亞木口版畫', 'Victorian wood engraving'], frame: 'paper' } },
-  { to: 1915, preset: 'ragtime-piano', style: ['工程藍圖', 'Engineering blueprint'], frame: 'steel', palette: ['#1f4e8c', '#e8f1ff', '#9cc3e6', '#f2d16b', '#0f2a4d'], alt: { preset: 'victorian-musicbox', style: ['專利圖', 'Patent drawing'], frame: 'paper' } },
-  { to: 1945, preset: 'newsreel-brass', style: ['黑白新聞片', 'Black-and-white newsreel'], frame: 'film', palette: ['#e8e2d2', '#9a958a', '#55524b', '#1e1d1b', '#c7c0ad'], alt: { preset: 'ragtime-piano', style: ['裝飾藝術海報', 'Art Deco poster'], frame: 'poster' } },
-  { to: 1965, preset: 'cool-jazz-vibes', style: ['世紀中期現代主義海報', 'Mid-century modernist poster'], frame: 'poster', palette: ['#f2ebdc', '#c8102e', '#1d3557', '#f1c40f', '#2a2a2a'], alt: { preset: 'newsreel-brass', style: ['漫畫清線風格', 'Ligne claire comic'], frame: 'paper' } },
-  { to: 1980, preset: 'seventies-analog', style: ['絲網印刷海報', 'Screen-printed poster'], frame: 'poster', palette: ['#f3e3c3', '#e85d2a', '#2a6f97', '#f2b134', '#2b2b2b'], alt: { preset: 'cool-jazz-vibes', style: ['漫畫清線風格', 'Ligne claire comic'], frame: 'paper' } },
-  { to: 1990, preset: 'synthwave', style: ['合成器浪潮霓虹', 'Synthwave neon'], frame: 'screen', palette: ['#16121f', '#ff4f9a', '#35d0ff', '#ffd166', '#5b2a86'], alt: { preset: 'seventies-analog', style: ['早期電腦介面', 'Early GUI / dot matrix'], frame: 'screen' } },
-  { to: 2000, preset: 'chiptune', style: ['像素遊戲', 'Pixel art'], frame: 'screen', palette: ['#c9c5bb', '#3f8fd2', '#2e7d32', '#f2c14e', '#1d1d1d'], alt: { preset: 'synthwave', style: ['早期電腦介面', 'Early GUI / dot matrix'], frame: 'screen' } },
-  { to: 2015, preset: 'ambient-fm-bells', style: ['扁平資訊圖表', 'Flat infographic'], frame: 'poster', palette: ['#f4f1ea', '#087e8b', '#ff5a5f', '#3c3c3c', '#c4d7d1'], alt: { preset: 'fm-keys-electro', style: ['衛星地圖', 'Satellite map'], frame: 'screen' } },
-  { to: 1e9, preset: 'electro-arps', style: ['數位線框 HUD', 'Wireframe HUD'], frame: 'screen', palette: ['#07131f', '#39d0ff', '#9effc8', '#ffb347', '#1c3b57'], alt: { preset: 'fm-keys-electro', style: ['等角 3D 低多邊形', 'Isometric low-poly 3D'], frame: 'screen' } },
+  { to: -500, a: 'fresco', b: 'blackfigure', preset: 'ancient-harp', altPreset: 'santur-dastgah' },
+  { to: 600, a: 'inkwash', b: 'miniature', preset: 'guzheng-pentatonic', altPreset: 'santur-dastgah' },
+  { to: 1450, a: 'manuscript', b: 'tapestry', preset: 'medieval-recorder', altPreset: 'flamenco-guitar' },
+  { to: 1650, a: 'woodcut', b: 'delft', preset: 'baroque-harpsichord', altPreset: 'flamenco-guitar' },
+  { to: 1800, a: 'copperplate', b: 'map', preset: 'string-quartet', altPreset: 'baroque-harpsichord' },
+  { to: 1880, a: 'patent', b: 'chromolith', preset: 'victorian-musicbox', altPreset: 'frontier-banjo' },
+  { to: 1915, a: 'blueprint', b: 'deco', preset: 'ragtime-piano', altPreset: 'victorian-musicbox' },
+  { to: 1945, a: 'newsreel', b: 'deco', preset: 'newsreel-brass', altPreset: 'ragtime-piano' },
+  { to: 1965, a: 'midcentury', b: 'newsreel', preset: 'cool-jazz-vibes', altPreset: 'newsreel-brass' },
+  { to: 1980, a: 'screenprint', b: 'lignecaire', preset: 'seventies-analog', altPreset: 'cool-jazz-vibes' },
+  { to: 1990, a: 'synthwave', b: 'gui', preset: 'synthwave', altPreset: 'seventies-analog' },
+  { to: 2000, a: 'pixel', b: 'gui', preset: 'chiptune', altPreset: 'synthwave' },
+  { to: 2015, a: 'infographic', b: 'satellite', preset: 'ambient-fm-bells', altPreset: 'fm-keys-electro' },
+  { to: 1e9, a: 'hud', b: 'iso', preset: 'electro-arps', altPreset: 'fm-keys-electro' },
 ];
 const CYCLE = ['ancient-harp', 'medieval-recorder', 'baroque-harpsichord', 'guzheng-pentatonic', 'string-quartet', 'frontier-banjo', 'ragtime-piano', 'newsreel-brass', 'cool-jazz-vibes', 'seventies-analog', 'synthwave', 'chiptune', 'temple-yueqin', 'ambient-fm-bells', 'electro-arps', 'fm-keys-electro'];
+// process / non-dated films: a contrasting medium cycle (all with ready-made looks)
+const MEDIA_CYCLE = ['woodcut', 'blueprint', 'midcentury', 'newsreel', 'watercolour', 'screenprint', 'pixel', 'infographic', 'hud', 'patent', 'gui', 'deco'];
 const eraOf = (y) => ERA.find((e) => y < e.to) || ERA[ERA.length - 1];
+const mediumByName = (name) => {
+  if (!name) return null;
+  if (MEDIA[name]) return { id: name, ...MEDIA[name] };
+  const hit = Object.entries(MEDIA).find(([, m]) => m.zh === name || m.en.toLowerCase() === String(name).toLowerCase());
+  return hit ? { id: hit[0], ...hit[1] } : null;
+};
 
 // ---------------------------------------------------------------------------- chapters
 const presetList = typeof opt.presets === 'string' && opt.presets !== 'auto' ? opt.presets.split(',').map((s) => s.trim()) : null;
@@ -136,8 +188,11 @@ function stubChapter(i) {
   if (!/^[a-z][a-z0-9_]*$/.test(id)) fail(`chapter id "${id}" must match /^[a-z][a-z0-9_]*$/ (it is also the scene module name)`);
   const year = s.year ?? (yearList ? yearList[i] : undefined);
   const era = year !== undefined && Number.isFinite(year) ? eraOf(year) : null;
-  let preset = s.preset || (s.music && s.music.preset) || (presetList && presetList[i]) || (era ? era.preset : CYCLE[(i * 5) % CYCLE.length]);
+  // medium: spec "medium" (a MEDIA id or its zh / en name) > era default > contrast cycle
+  const med = mediumByName(s.medium) || (era ? { id: era.a, ...MEDIA[era.a] } : { id: MEDIA_CYCLE[i % MEDIA_CYCLE.length], ...MEDIA[MEDIA_CYCLE[i % MEDIA_CYCLE.length]] });
+  const preset = s.preset || (s.music && s.music.preset) || (presetList && presetList[i]) || (era ? era.preset : CYCLE[(i * 5) % CYCLE.length]);
   const num = i + 1;
+  const palette = s.palette || med.palette;
   const c = {
     id,
     dateLabel: s.dateLabel || (year !== undefined ? String(year) : zh ? `第 ${num} 章` : `Chapter ${num}`),
@@ -150,34 +205,44 @@ function stubChapter(i) {
     facts: s.facts || ['TODO: fact 1 (sourced)', 'TODO: fact 2 (sourced)'],
     specs: s.specs || '',
     sources: s.sources || [{ label: 'TODO: source', url: 'https://' }],
-    style: s.style || (era ? era.style[zh ? 0 : 1] : 'TODO: art medium'),
-    styleAlt: s.styleAlt || (era ? era.style[zh ? 1 : 0] : ''),
-    palette: s.palette || (era ? era.palette : ['#e9dcc0', '#2a2622', '#7a8c6e', '#c9a45c', '#3d6b6e']),
-    frame: s.frame || { family: era ? era.frame : 'wood', color: '#7a5a3a', accent: (s.palette || (era && era.palette) || ['', '#c8102e'])[1] },
-    prop: s.prop || { type: 'pennant', colors: [(s.palette || (era && era.palette) || ['', '#c8102e', '#1d3557'])[1], (s.palette || (era && era.palette) || ['', '#c8102e', '#1d3557'])[2]] },
+    style: s.style || (zh ? med.zh : med.en),
+    styleAlt: s.styleAlt || (zh ? med.en : med.zh),
+    palette,
+    frame: s.frame || { family: med.frame, color: '#7a5a3a', accent: palette[1] },
+    prop: s.prop || { type: 'pennant', colors: [palette[1], palette[2]] },
     music: { ...(s.music || {}), preset },
   };
   for (const k of ['scene', 'easel']) if (s[k]) c[k] = s[k];
+  // kept out of chapters.js: scaffold-only fields
+  Object.defineProperty(c, '_medium', { value: med, enumerable: false, writable: true });
+  Object.defineProperty(c, '_look', { value: s.look || opt.look || med.look, enumerable: false, writable: true });
+  Object.defineProperty(c, '_spec', { value: s, enumerable: false });
   return c;
 }
 const chapters = Array.from({ length: N }, (_, i) => stubChapter(i));
 // avoid the same preset / medium on two neighbouring chapters (the look and music should change at
-// every bar line): the second of a pair switches to its era's alternative.
+// every bar line): the second of a pair switches to its era's alternative (with its own palette).
 for (let i = 1; i < chapters.length; i++) {
-  const s = (specChapters && specChapters[i]) || {};
-  const era = chapters[i].year !== undefined ? eraOf(chapters[i].year) : null;
+  const c = chapters[i];
+  const s = c._spec;
+  const era = c.year !== undefined ? eraOf(c.year) : null;
   const sp = s.preset || (s.music && s.music.preset);
-  if (!sp && !presetList && chapters[i].music.preset === chapters[i - 1].music.preset) {
-    if (era && era.alt.preset !== chapters[i - 1].music.preset) chapters[i].music.preset = era.alt.preset;
+  if (!sp && !presetList && c.music.preset === chapters[i - 1].music.preset) {
+    if (era && era.altPreset !== chapters[i - 1].music.preset) c.music.preset = era.altPreset;
     else {
-      const k = CYCLE.indexOf(chapters[i].music.preset);
-      chapters[i].music.preset = CYCLE[(Math.max(k, 0) + 3) % CYCLE.length];
+      const k = CYCLE.indexOf(c.music.preset);
+      c.music.preset = CYCLE[(Math.max(k, 0) + 3) % CYCLE.length];
     }
   }
-  if (era && !s.style && chapters[i].style === chapters[i - 1].style) {
-    chapters[i].style = era.alt.style[zh ? 0 : 1];
-    chapters[i].styleAlt = era.alt.style[zh ? 1 : 0];
-    if (!s.frame) chapters[i].frame = { ...chapters[i].frame, family: era.alt.frame };
+  if (era && !s.style && !s.medium && c.style === chapters[i - 1].style) {
+    const alt = { id: era.b, ...MEDIA[era.b] };
+    c._medium = alt;
+    if (!s.look && !opt.look) c._look = alt.look;
+    c.style = zh ? alt.zh : alt.en;
+    c.styleAlt = zh ? alt.en : alt.zh;
+    if (!s.palette) c.palette = alt.palette;
+    if (!s.frame) c.frame = { family: alt.frame, color: '#7a5a3a', accent: c.palette[1] };
+    if (!s.prop) c.prop = { type: 'pennant', colors: [c.palette[1], c.palette[2]] };
   }
 }
 
@@ -236,13 +301,17 @@ if (!demo) {
   idx = idx.replace(/export const SCENE_MODULES = \{[\s\S]*?\n\};/, `export const SCENE_MODULES = {\n${sceneIds.map((id) => `  ${id},`).join('\n')}\n};`);
   fs.writeFileSync(idxFile, idx);
   for (const id of sceneIds) {
-    const r = spawnSync(process.execPath, ['tools/new-scene.mjs', id, '--force', ...(sceneKind === 'wide' ? ['--wide'] : [])], { cwd: DIR, encoding: 'utf8' });
+    const c0 = chapters.find((x) => (x.scene || x.id) === id);
+    const look = opt.look === 'plain' || c0._look === 'plain' ? null : c0._look;
+    const kindArgs = look ? ['--look', look] : sceneKind === 'wide' ? ['--wide'] : [];
+    const r = spawnSync(process.execPath, ['tools/new-scene.mjs', id, '--force', ...kindArgs], { cwd: DIR, encoding: 'utf8' });
     if (r.status !== 0) fail(`new-scene ${id}: ${r.stdout}${r.stderr}`);
     // pre-fill the header with what we know about the chapter
     const c = chapters.find((x) => (x.scene || x.id) === id);
     const f = P('src/scenes', `${id}.js`);
     let src = fs.readFileSync(f, 'utf8');
     src = src.replace('<date> · <title>', `${c.dateLabel} · ${c.title}`);
+    src = src.replace('<the art medium of this chapter — what makes it unmistakable at a glance>', `${c.style} (${c.styleAlt}) — <fill in: what makes it unmistakable at a glance; references/art-media.md>`);
     if (sceneKind === 'square') src = src.replace("['#e9dcc0', '#2a2622', '#7a8c6e', '#c9a45c']", JSON.stringify(c.palette.slice(0, 4)).replace(/"/g, "'"));
     fs.writeFileSync(f, src);
   }
@@ -257,18 +326,23 @@ if (!demo) {
     '',
   ];
   for (const c of chapters) {
+    // spec chapters may carry the research too: claim, when, visual, doNotClaim, hedged, justified
+    const s = c._spec || {};
+    const realFacts = (c.facts || []).filter((f) => !/\bTODO\b/.test(f));
+    const realSources = (c.sources || []).filter((x) => x && /^https?:\/\/[^/\s]+\.[^/\s]+/.test(x.url || ''));
     fsLines.push(
       `## ${c.id} · ${c.dateLabel} · ${c.title}`,
       '',
-      '- **Claim (one sentence the chapter makes):** TODO',
-      '- **Date / place / people:** TODO',
-      '- **Visual facts for the scene (what it looked like: machine, tools, costume, setting):** TODO',
+      `- **Claim (one sentence the chapter makes):** ${s.claim || 'TODO'}`,
+      `- **Date / place / people:** ${s.when || 'TODO'}`,
+      `- **Visual facts for the scene (what it looked like: machine, tools, costume, setting):** ${s.visual || 'TODO'}`,
       '- **Facts for the info card (2–4, each with its source):**',
-      '  1. TODO — [source]',
+      ...(realFacts.length ? realFacts.map((f, k) => `  ${k + 1}. ${f}`) : ['  1. TODO — [source]']),
       '- **Sources:**',
-      '  - TODO label — https://',
-      '- **Do not claim:** TODO (contested firsts, exact numbers you could not verify, legends)',
-      '- **Uncertain / hedged wording used:** TODO',
+      ...(realSources.length ? realSources.map((x) => `  - ${x.label} — ${x.url}`) : ['  - TODO label — https://']),
+      `- **Do not claim:** ${s.doNotClaim || 'TODO (contested firsts, exact numbers you could not verify, legends)'}`,
+      `- **Uncertain / hedged wording used:** ${s.hedged || 'TODO'}`,
+      ...(s.justified ? [`- **Strong words justified:** ${s.justified}`] : []),
       '',
     );
   }
@@ -294,18 +368,24 @@ const options = {
   lang,
   sceneKind,
   demo,
-  chapters: chapters.map((c) => ({ id: c.id, year: c.year, preset: c.music.preset, style: c.style })),
+  chapters: chapters.map((c) => ({ id: c.id, year: c.year, preset: c.music.preset, style: c.style, medium: c._medium.id, look: c._look })),
 };
 fs.writeFileSync(P('film.options.json'), JSON.stringify(options, null, 2) + '\n');
 
 // ---------------------------------------------------------------------------- summary
 const v = spawnSync(process.execPath, ['tools/validate.mjs'], { cwd: DIR, encoding: 'utf8' });
 console.log(`\nnew film at ${DIR}`);
-console.log(`  staging ${stage}+${character} · lang ${lang} · ${demo ? 'demo chapters' : `${N} chapters (${sceneKind} scene skeletons)`}`);
-if (!demo) for (const c of chapters) console.log(`  ${c.id.padEnd(12)} ${String(c.year ?? '').padEnd(6)} ${c.music.preset.padEnd(20)} ${c.style}`);
+console.log(`  staging ${stage}+${character} · lang ${lang} · ${demo ? 'demo chapters' : `${N} chapters (scene skeletons: ${opt.look === 'plain' ? sceneKind : 'per-medium looks, both stages'})`}`);
+const DOTS = ['', '●', '●●', '●●●'];
+const sameLook = chapters.slice(1).map((c, i) => (c._look && c._look === chapters[i]._look ? `${chapters[i].id}/${c.id}` : null)).filter(Boolean);
+if (!demo) {
+  console.log(`  ${'id'.padEnd(12)} ${'year'.padEnd(6)} ${'preset'.padEnd(20)} ${'look'.padEnd(10)} medium (effort: ● simple · ●● moderate · ●●● rich)`);
+  for (const c of chapters) console.log(`  ${c.id.padEnd(12)} ${String(c.year ?? '').padEnd(6)} ${c.music.preset.padEnd(20)} ${String(c._look || sceneKind).padEnd(10)} ${c.style} ${DOTS[c._medium.rating] || ''}`);
+}
+if (!demo && sameLook.length) console.log(`  note: neighbours share a look (${sameLook.join(', ')}): give them clearly different palettes / subjects, or change one "medium"`);
 console.log(v.stdout.trim().split('\n').map((l) => `  ${l}`).join('\n'));
 console.log(`\nnext:
   1. research/fact-sheet.md        (references/content-research.md)
   2. src/data/film.config.js + src/data/chapters.js   (replace every TODO)
-  3. src/scenes/<id>.js            one per chapter (references/scene-contract.md, art-media.md)
+  3. src/scenes/<id>.js            one per chapter: replace every "// REPLACE:" block (references/scene-contract.md)
   4. node ${path.join(SKILL, 'scripts', 'check_film.mjs')} ${DIR} --draft   while working; without --draft before delivery`);

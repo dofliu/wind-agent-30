@@ -703,20 +703,19 @@ export function render(kit, ctx, p) {
     p.actor.draw(ctx, rig, { ...RIDER_STYLE, prop: { ...p.prop, colors: ['#c79a62', '#7a5235'] } });
   }
 
-  // soft raking light over everything (keeps moving parts in the same clay)
+  ctx.restore();
+  // soft raking light over everything (keeps moving parts in the same clay); baked at canvas size
+  // and blitted 1:1 (a scaled full-frame drawImage costs ~6 ms on the 1920x1080 easel canvas)
   ctx.drawImage(
-    kit.bake('tablet_light_v1', S, S, (g) => {
-      const gr = g.createLinearGradient(0, 0, S, S);
+    kit.bake('tablet_light_v1', p.W, p.H, (g, rng, w, h) => {
+      const gr = g.createLinearGradient(0, 0, w, h);
       gr.addColorStop(0, 'rgba(255, 240, 210, 0.10)');
       gr.addColorStop(0.6, 'rgba(0, 0, 0, 0)');
       gr.addColorStop(1, 'rgba(60, 30, 10, 0.16)');
       g.fillStyle = gr;
-      g.fillRect(0, 0, S, S);
+      g.fillRect(0, 0, w, h);
     }),
-    L.x0,
-    L.y0,
-    L.x1 - L.x0,
-    L.y1 - L.y0,
+    0,
+    0,
   );
-  ctx.restore();
 }

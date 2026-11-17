@@ -1,0 +1,129 @@
+{
+  "title": "兩個輪子的旅程",
+  "subtitle": "腳踏車簡史",
+  "subtitleAlt": "A Short History of the Bicycle",
+  "quote": "「兩個輪子，一條路，兩百年。」",
+  "headline": "輪子一直往前。",
+  "summary": "從用腳蹬地的木馬，到裝上充氣輪胎的安全腳踏車",
+  "closing": "下一段路，換你來騎。",
+  "staging": "gallery-ride+person",
+  "hat": "straw",
+  "lang": "zh-Hant",
+  "bpm": 120,
+  "barsPerChapter": 4,
+  "chapters": [
+    {
+      "id": "draisine",
+      "year": 1817,
+      "dateLabel": "1817",
+      "ruler": "1817",
+      "title": "德萊斯滑行車",
+      "titleAlt": "Drais's running machine",
+      "caption": "沒有踏板的木製兩輪車，靠雙腳蹬地前進",
+      "description": "1817 年，德國的德萊斯（Karl Drais）在曼海姆展示了一種木製兩輪「跑步機器」。騎的人坐在車架上，用雙腳輪流蹬地前進，前輪可以轉向。它沒有踏板也沒有鏈條，但一般認為是腳踏車最早的直系祖先之一。",
+      "facts": [
+        "德萊斯於 1817 年在曼海姆試騎滑行車 — Wikipedia: Dandy horse",
+        "車身與車輪主要是木製，前輪可轉向 — Wikipedia: Dandy horse"
+      ],
+      "sources": [
+        {
+          "label": "Wikipedia — Dandy horse",
+          "url": "https://en.wikipedia.org/wiki/Dandy_horse"
+        }
+      ],
+      "medium": "patent",
+      "preset": "victorian-musicbox",
+      "claim": "最早的兩輪個人交通工具之一沒有踏板，靠雙腳蹬地。",
+      "when": "1817 年，曼海姆（德國）；德萊斯（Karl Drais）",
+      "visual": "木製車架與兩個同尺寸木輪、可轉向的前輪與把手、騎士坐姿雙腳著地；不畫踏板與鏈條",
+      "doNotClaim": "「第一輛腳踏車」；精確車重與速度數字",
+      "hedged": "「一般認為是…最早的直系祖先之一」",
+      "justified": "最早 — 畫面與說明都寫成「一般認為是…最早的直系祖先之一」(Wikipedia: Dandy horse)"
+    },
+    {
+      "id": "velocipede",
+      "year": 1865,
+      "dateLabel": "1860 年代",
+      "ruler": "1860s",
+      "title": "前輪踏板車",
+      "titleAlt": "The pedal velocipede",
+      "caption": "踏板直接裝在前輪上，石板路上顛得厲害",
+      "description": "1860 年代的法國出現把曲柄踏板直接裝在前輪輪軸上的兩輪車，常被稱為「velocipede」。鐵框木輪配上鐵製輪圈，在石板路上非常顛簸，英語俗稱「boneshaker」。誰最先加上踏板至今仍有爭議，因此這裡只描述這個時期的車型。",
+      "facts": [
+        "踏板曲柄直接裝在前輪上 — Wikipedia: Velocipede",
+        "英語俗稱 boneshaker，因為乘坐顛簸 — Wikipedia: Velocipede"
+      ],
+      "sources": [
+        {
+          "label": "Wikipedia — Velocipede",
+          "url": "https://en.wikipedia.org/wiki/Velocipede"
+        }
+      ],
+      "medium": "chromolith",
+      "preset": "frontier-banjo",
+      "claim": "踏板裝上前輪，讓兩輪車第一次能靠腳踏前進。",
+      "when": "1860 年代，法國",
+      "visual": "鐵製車架、木輪鐵圈、前輪略大、踏板在前輪輪軸上；石板街道",
+      "doNotClaim": "踏板的發明人（有爭議）；確切年份",
+      "hedged": "「1860 年代」「常被稱為」"
+    },
+    {
+      "id": "safety",
+      "year": 1885,
+      "dateLabel": "1885",
+      "ruler": "1885",
+      "title": "安全腳踏車",
+      "titleAlt": "The safety bicycle",
+      "caption": "兩輪等大、鏈條驅動後輪，今天腳踏車的雛形",
+      "description": "1880 年代，英國的斯塔利（John Kemp Starley）推出「Rover」安全腳踏車：前後輪大小接近，用鏈條帶動後輪，騎士坐得低、腳踩得到地。和當時高大的前大輪車相比，它安全得多，車架形式也一路演變成今天的腳踏車。",
+      "facts": [
+        "斯塔利的 Rover 約於 1885 年推出 — Wikipedia: Safety bicycle",
+        "以鏈條驅動後輪，兩輪大小接近 — Wikipedia: Safety bicycle"
+      ],
+      "sources": [
+        {
+          "label": "Wikipedia — Safety bicycle",
+          "url": "https://en.wikipedia.org/wiki/Safety_bicycle"
+        }
+      ],
+      "medium": "blueprint",
+      "preset": "ragtime-piano",
+      "claim": "等大雙輪加鏈條後驅，定下了現代腳踏車的基本形式。",
+      "when": "約 1885 年，英國考文垂；斯塔利（John Kemp Starley）",
+      "visual": "金屬管車架、兩輪接近等大、鏈條與後輪齒盤、實心輪胎",
+      "doNotClaim": "「發明了腳踏車」；Rover 的品牌圖樣",
+      "hedged": "「約 1885 年」「推出」"
+    },
+    {
+      "id": "pneumatic",
+      "year": 1888,
+      "dateLabel": "1888",
+      "ruler": "1888",
+      "title": "充氣輪胎",
+      "titleAlt": "The pneumatic tyre",
+      "caption": "裝了空氣的輪胎，讓騎乘變得平穩",
+      "description": "1888 年，在愛爾蘭貝爾法斯特行醫的鄧祿普（John Boyd Dunlop）為兒子的三輪車做出實用的充氣輪胎，並申請了專利。更早已有人申請過類似專利，但鄧祿普的輪胎很快被用在腳踏車上，讓騎乘平穩許多。",
+      "facts": [
+        "鄧祿普於 1888 年為充氣輪胎申請專利 — Wikipedia: John Boyd Dunlop",
+        "更早的 1840 年代已有人申請過充氣輪胎專利 — Wikipedia: Robert William Thomson"
+      ],
+      "sources": [
+        {
+          "label": "Wikipedia — John Boyd Dunlop",
+          "url": "https://en.wikipedia.org/wiki/John_Boyd_Dunlop"
+        },
+        {
+          "label": "Wikipedia — Robert William Thomson",
+          "url": "https://en.wikipedia.org/wiki/Robert_William_Thomson"
+        }
+      ],
+      "medium": "woodengraving",
+      "preset": "string-quartet",
+      "claim": "充氣輪胎讓腳踏車從顛簸的玩意變成舒適的日常交通工具。",
+      "when": "1888 年，貝爾法斯特；鄧祿普（John Boyd Dunlop）",
+      "visual": "安全腳踏車、鼓起的深色充氣輪胎、打氣筒；19 世紀末街景",
+      "doNotClaim": "「鄧祿普發明了充氣輪胎」（更早已有專利）；輪胎品牌標誌",
+      "hedged": "「申請了專利」「更早已有人申請過類似專利」"
+    }
+  ]
+}

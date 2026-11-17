@@ -39,9 +39,10 @@ editing anything, use `index.html?staging=easel+person`, or pass `--staging ease
   - the hill, painter and easel in the lower left (`p.cover`): everything left of x ≈ 640 below y ≈ 300, and the hill crest falling from y ≈ 760 at x 600 to the bottom edge at x ≈ 1110;
   - the top ~70 px (ruler and paper haze);
   - a ragged 60–160 px paper fade on the other edges.
-- The **safe area** for the subject is `p.safe = {x:760, y:70, w:1100, h:890}`. The horizon is near `p.horizonY = 430`, and the valley floor is near `p.groundY = 720`.
+- The **safe area** for the subject is `p.safe = {x:760, y:110, w:1000, h:830}`, clear of the ragged paper fade (the fade reaches 70–170 px in from the top and 70–180 px from the right, varying along the edge). The horizon is near `p.horizonY = 430`, and the valley floor is near `p.groundY = 720`. `--guides` draws the real fade, so text cut by it shows up there.
 - `p.layout = {x:840, y:50, s:0.9, x0, x1, y0, y1}` maps a 1000-unit design square into the safe area. `x0..x1` and `y0..y1` give the whole canvas in design units.
-- **Board miniature:** the stage cuts it from a calm mid-chapter still, using a wide band through the layout box. Override it per chapter with `chapter.easel = {crop:[x,y,w,h], ink, dateInk, seal}`, where the crop aspect is about 2.9 : 1.
+- **Board miniature:** the stage cuts it from the chapter's thumbnail still (`isThumbnail`): a full-width band of the layout box (x 840–1740, aspect ≈ 2.9 : 1), placed automatically at the height where the picture varies most across x (where a subject stands, not a uniform textured strip). If it still misses (check the `board / card` cell), set it per chapter with `chapter.easel = {crop:[x,y,w,h], ink, dateInk, seal}` in scene-canvas pixels, aspect w ≈ 2.9·h. Worked example: a subject spanning x 1000–1700, y 250–500 → `crop: [960, 230, 780, 269]` (w = 2.9 × 269). The painter fills the miniature during the second half of the chapter (wash rows from beat 6, details from beat 11), so it is the chapter's closing image.
+- check_film adds two cells to every scene strip: `in film (0.9)` (the composited frame with hill, painter and fade) and `board / card` (the finished board). Look at both.
 - **Wipe:** the incoming scene is rendered from `rawLocalT ≈ −0.25 s`, so animate with `rawLocalT`.
 - `PUSH` in `src/stages/easel.js` turns on a slow push-in on the valley. It costs about 5 ms per frame, so it is off by default.
 - Painter options come from `FILM.character` (`colors`, `hat`). See `characters.md`.

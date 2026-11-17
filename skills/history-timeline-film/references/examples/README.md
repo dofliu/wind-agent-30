@@ -21,3 +21,17 @@ Port with the mapping in `assets/template/SCENE_GUIDE.md` §7:
 To run one unchanged (gallery-ride, pixel-identical to the reference), copy it into
 `src/scenes/` and register it through the adapter: `gedser: legacy(gedser)` with
 `import { legacy } from './legacy.js'`. Legacy scenes assume 8 s chapters at 120 BPM.
+
+## `spec-example.json` (a complete scaffold spec)
+
+A 4-chapter bicycle history written as one `--spec` file: every chapters.js field (caption,
+description, facts, sources) plus the scaffold-only fields `year`, `medium`, `preset` and the
+fact-sheet fields `claim`, `when`, `visual`, `doNotClaim`, `hedged`, `justified`. Scaffolding it
+leaves no content TODO; only the scenes' `// REPLACE:` blocks remain:
+
+```bash
+node <skill>/scripts/new_film.mjs --dir ~/films/bike --spec <skill>/references/examples/spec-example.json --install
+```
+
+Copy it, change the topic, and keep the shape. Facts in it are kept to well-known, hedged
+statements; re-check them before publishing a real film.

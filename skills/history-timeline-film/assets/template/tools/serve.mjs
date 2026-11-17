@@ -51,6 +51,7 @@ export function startServer(root = ROOT, port = 0) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const port = parseInt(process.argv[2] || process.env.PORT || '4173', 10);
+  (await import('./glyphs.mjs')).syncGlyphs(ROOT);
   startServer(ROOT, port).then(({ port: p }) => {
     console.log(`film → http://127.0.0.1:${p}/  (gallery: /gallery.html, render host: /render.html)`);
   });

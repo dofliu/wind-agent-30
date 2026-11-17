@@ -12,6 +12,12 @@ Each entry gives:
 
 Effort: ● = simple with kit helpers (good for low-effort runs) · ●● = moderate · ●●● = rich, benefits from a dedicated subagent.
 
+**Looks.** Every medium maps to a scene-skeleton look (`new_film.mjs` picks it; `node tools/new-scene.mjs <id> --look <look>`):
+`engraving` (woodcut, copperplate, wood engraving, patent, map) · `poster` (manuscript, miniature, tapestry, chromolith, Deco, WPA,
+mid-century, ligne claire, screen print, infographic, isometric) · `blueprint` · `newsreel` (newsreel, silent film) ·
+`screen` (synthwave, early GUI, satellite map, HUD) · `pixel` · `ink` (ink wash, watercolour, Delftware) · `fresco` (fresco, relief, clay
+tablet, black-figure). The look gives the medium's ground, texture and overlay; the tells below are what you add to the subject.
+
 ## Contents
 Ancient · Medieval & early modern · 18th–19th c. · 20th c. · Digital & contemporary · East Asia & Taiwan · Neutral / process
 
@@ -100,7 +106,7 @@ Ancient · Medieval & early modern · 18th–19th c. · 20th c. · Digital & con
 19. **Silent film / black-and-white newsreel** ●●
     - Tells: grain, flicker, gate weave, a vignette, scratches, an intertitle card, a 4:3 feel, slightly fast motion.
     - Canvas: baked grain frames, `noise` flicker (see `references/examples/putnam.js`).
-    - Frame `film` · preset `newsreel-brass` (1930s–40s) or `ragtime-piano` (1910s–20s).
+    - Frame `film` · preset `newsreel-brass` (1930s–40s), `cool-jazz-vibes` (1950s–60s: newsreels, TV news and documentary film stayed black-and-white well into the 60s) or `ragtime-piano` (1910s–20s).
 20. **WPA / public-works poster** ●
     - Tells: flat silkscreen colours, strong diagonals, heroic workers and machines, simple sans type. Keep wording generic.
     - Frame `poster` · preset `newsreel-brass`.

@@ -170,13 +170,23 @@ if (zh) {
   }
   const STRONG = /(最早|第一[個座台部位次]?|首次|首座|首創|唯一|世界最大|全球最大|發明了|史上最|always|the first|first ever|only one|invented|largest|biggest|oldest)/gi;
   const strong = [];
+  let justified = 0;
+  const mdAll = fs.existsSync(fsFile) ? fs.readFileSync(fsFile, 'utf8') : '';
+  const secs = mdAll.split(/^## /m).slice(1);
   for (const c of CHAPTERS) {
     const text = [c.title, c.caption, c.description, ...(c.facts || [])].join(' ');
     const m = text.match(STRONG);
-    if (m) strong.push(`${c.id}: ${[...new Set(m)].join('/')}`);
+    if (!m) continue;
+    // a fact-sheet line "- **Strong words justified:** 第一 (official claim, hedged as 官方稱…) — <source>"
+    // clears the words it names for that chapter
+    const sec = secs.find((x) => x.split('\n')[0].includes(c.id)) || '';
+    const just = (sec.match(/^.*strong words justified.*$/gim) || []).join(' ').toLowerCase();
+    const open = [...new Set(m)].filter((w) => !just.includes(w.toLowerCase()));
+    if (open.length) strong.push(`${c.id}: ${open.join('/')}`);
+    else justified++;
   }
   const st = issues.length ? contentFail : strong.length ? 'WARN' : 'PASS';
-  add('facts', st, `${issues.length ? issues.slice(0, 3).join('; ') + ' · ' : ''}${strong.length ? `strong claims to re-check against sources: ${strong.slice(0, 4).join('; ')}` : 'no strong-claim words'}`);
+  add('facts', st, `${issues.length ? issues.slice(0, 3).join('; ') + ' · ' : ''}${strong.length ? `strong claims to re-check against sources (then add a "- **Strong words justified:** <words> — <why/source>" line to that chapter's fact-sheet section): ${strong.slice(0, 4).join('; ')}` : `no unjustified strong-claim words${justified ? ` (${justified} chapter(s) justified in the fact sheet)` : ''}`}`);
   for (const l of [...issues.slice(3, 20), ...strong.slice(4, 30)]) console.log(`        ${l}`);
 }
 
@@ -194,6 +204,8 @@ if (zh) {
     }
     const src = fs.readFileSync(f, 'utf8');
     if (src.includes('<the art medium of this chapter')) issues.push(`${c.id}: ${id}.js is still the new-scene skeleton`);
+    else if (/\/\/ REPLACE:/.test(src)) issues.push(`${c.id}: ${id}.js still has the skeleton's placeholder ("// REPLACE:" comments: draw the real subject / beat, then delete those comments)`);
+    else if (src.includes('<fill in')) issues.push(`${c.id}: ${id}.js header still says "<fill in …>" (medium tells, subject, story beat)`);
     if (!idx.includes(`'./${id}.js'`)) issues.push(`${c.id}: ${id}.js not imported in scenes/index.js`);
     const m = src.match(/export const meta\s*=\s*\{\s*stages:\s*\[([^\]]*)\]/);
     if (m) for (const sid of stageIds) if (!m[1].includes(`'${sid}'`) && !m[1].includes(`"${sid}"`)) issues.push(`${c.id}: meta.stages lacks '${sid}' (placeholder on that stage)`);
@@ -297,7 +309,7 @@ if (browserMod) {
       ];
       for (const ch of info.chapters) {
         if (ONLY && !ONLY.includes(ch.id)) continue;
-        await stripInit(page, 6, 1, 360, info.sceneH / info.sceneW > 0.8 ? 360 : 203);
+        await stripInit(page, 8, 1, 360, info.sceneH / info.sceneW > 0.8 ? 360 : 203);
         for (const [label, lt] of times) {
           await page.evaluate(([id, l]) => window.renderPanelAt(id, l), [ch.id, lt]);
           const st = await canvasStats(page);
@@ -308,14 +320,28 @@ if (browserMod) {
         const th = await canvasStats(page);
         if (th.sd < 3) sceneIssues.push(`${ch.id}: thumbnail looks blank`);
         await stripAdd(page, 'thumbnail');
+        // how the stage shows it: the composited film frame near the chapter end (frame, placard,
+        // hill, painter, paper fade) + the stage card (easel: the painted board and its miniature)
+        await page.evaluate((t) => window.renderAt(t), ch.t0 + 0.9 * cs);
+        await stripAdd(page, 'in film (0.9)');
+        if (await page.evaluate((id) => window.renderCardFor(id), ch.id)) await stripAdd(page, 'board / card');
         const file = path.join(sdir, `scene_${String(ch.num).padStart(2, '0')}_${ch.id}.jpg`);
         await stripSave(page, file);
         looks.push(file);
         const ms = await page.evaluate(async (id) => {
+          // read one pixel back after each frame: canvas work is deferred, so without a sync the
+          // timer only measures command submission (≈ 0.1 ms whatever the scene costs)
           const cs = window.__FILM_INFO__.chapterSec;
+          const c = document.querySelector('#canvas-host canvas');
+          const sg = Object.assign(document.createElement('canvas'), { width: 1, height: 1 }).getContext('2d', { willReadFrequently: true });
+          const sync = () => (sg.drawImage(c, 0, 0, 1, 1, 0, 0, 1, 1), sg.getImageData(0, 0, 1, 1));
           await window.renderPanelAt(id, 1);
+          sync();
           const t0 = performance.now();
-          for (let k = 0; k < 30; k++) await window.renderPanelAt(id, (k / 30) * cs);
+          for (let k = 0; k < 30; k++) {
+            await window.renderPanelAt(id, (k / 30) * cs);
+            sync();
+          }
           return (performance.now() - t0) / 30;
         }, ch.id);
         worst = Math.max(worst, ms);
@@ -372,7 +398,9 @@ if (browserMod) {
           }
           if (hashesB.join() !== hashesA.join()) {
             detOk = false;
-            detail = `fresh page differs: ${hashesA.join(',')} vs ${hashesB.join(',')}`;
+            const which = probe.map((t, i) => (hashesA[i] !== hashesB[i] ? `t=${t.toFixed(2)}` : null)).filter(Boolean).join(', ');
+            const outroOnly = hashesA[0] === hashesB[0] && hashesA[1] === hashesB[1];
+            detail = `fresh page differs at ${which}: ${hashesA.join(',')} vs ${hashesB.join(',')}${outroOnly ? ' — outro only: a chapter THUMBNAIL depends on time or state (isThumbnail must draw a fixed frame), or a glyph font loaded late (run node tools/glyphs.mjs)' : ' — state kept between frames (a PRNG advanced across calls, a mutated array, a cache keyed without the time)'}`;
           } else detail = `${probe.length} frames identical across pages (${hashesA.join(',')})`;
         } finally {
           await h2.close();

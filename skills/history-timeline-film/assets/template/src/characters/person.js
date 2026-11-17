@@ -35,7 +35,7 @@ export const DEFAULT_PERSON_STYLE = {
   trousers: '#4b4339',
   shoes: '#2b221c',
   hat: 'beret', // 'beret' | 'straw' | 'cap' | 'none'
-  hatColor: '#b8473a',
+  hatColor: '#b8473a', // when not given, HAT_COLORS[hat] is used (straw is straw-coloured)
   hatBand: '#2b2620',
   scarf: true,
   scarfColor: '#e9c46a',
@@ -928,8 +928,22 @@ function drawHeadRear(ctx, h, st, pen, rig) {
 // Character descriptor
 // -----------------------------------------------------------------------------
 /** Ruler marker: a tiny head with the hat, centred at (x, y). */
+/** Default hat colours per hat type (used when the style gives no hatColor / hatBand). */
+export const HAT_COLORS = {
+  beret: { hatColor: '#b8473a', hatBand: '#2b2620' },
+  straw: { hatColor: '#e2c47c', hatBand: '#7a3b2a' },
+  cap: { hatColor: '#2f5d7c', hatBand: '#1f3f55' },
+};
+function resolveStyle(styleIn = {}) {
+  const st = { ...DEFAULT_PERSON_STYLE, ...styleIn };
+  const hc = HAT_COLORS[st.hat] || HAT_COLORS.beret;
+  if (styleIn.hatColor == null) st.hatColor = hc.hatColor;
+  if (styleIn.hatBand == null) st.hatBand = hc.hatBand;
+  return st;
+}
+
 function drawMarker(ctx, x, y, style = {}) {
-  const st = { ...DEFAULT_PERSON_STYLE, ...style };
+  const st = resolveStyle(style);
   ctx.save();
   ctx.fillStyle = st.skin;
   ctx.strokeStyle = st.outline;
@@ -953,7 +967,7 @@ function drawMarker(ctx, x, y, style = {}) {
 }
 
 function draw(ctx, rig, styleIn = {}) {
-  const st = { ...DEFAULT_PERSON_STYLE, ...styleIn };
+  const st = resolveStyle(styleIn);
   if (styleIn.pinwheel && !styleIn.prop) st.prop = styleIn.pinwheel;
   if (rig.action === 'cycle') drawCycle(ctx, rig, st);
   else drawPaint(ctx, rig, st);

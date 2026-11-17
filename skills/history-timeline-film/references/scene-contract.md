@@ -22,8 +22,13 @@ export const meta = { stages: ['gallery-ride', 'easel'] };  // stages this scene
 export function render(kit, ctx, p) { /* paint one chapter into ctx (p.W x p.H, cleared) */ }
 ```
 
-- `node tools/new-scene.mjs <id>` writes a skeleton and registers it in `src/scenes/index.js`.
-  Add `--wide` for a native easel valley (1920x1080). `new_film.mjs` already did this for every chapter.
+- `node tools/new-scene.mjs <id> --look <look>` writes a skeleton and registers it in `src/scenes/index.js`.
+  `new_film.mjs` already did this for every chapter, with the **look** of its medium
+  (`engraving poster blueprint newsreel screen pixel ink fresco`; §4). `--look plain` gives the bare
+  design-square skeleton, `--wide` a bare native easel valley (1920x1080).
+- A look skeleton already reads as its medium on both stages. Your job is the blocks marked
+  `// REPLACE:` (the subject and the bar-3 beat) plus the setting in `paintBackground()`.
+  check_film fails while a `// REPLACE:` comment or a `<fill in` header remains.
 - A chapter uses `chapter.scene || chapter.id`. Several chapters may share one module.
 - If a module is missing, throws, or its `meta.stages` leaves out the active stage, the placeholder renders and the problem is logged once. `check_film` fails on that log.
 - Only edit your own `src/scenes/<id>.js`. Never touch stages, characters, kit or audio from a scene task.
@@ -45,7 +50,7 @@ export function render(kit, ctx, p) { /* paint one chapter into ctx (p.W x p.H, 
 | `p.actor` | gallery-ride: the rider API (`visible`, `rig(opts)`, `draw(ctx, rig, style)`); easel: `null` |
 | `p.layout` / `kit.layout(p)` | maps a 1000x1000 design square onto the stage canvas (`{x, y, s, x0, x1, y0, y1}`) |
 | gallery-ride extras | `groundY` 700, `riderLocalX`, `pedalAngle`, `speedScale`, `pinwheelAngle` |
-| easel extras | `safe {x:760,y:70,w:1100,h:890}`, `horizonY` 430, `groundY` 720, `cover` polygon |
+| easel extras | `safe {x:760,y:110,w:1000,h:830}` (clear of the paper fade), `horizonY` 430, `groundY` 720, `cover` polygon |
 
 ## 3. Canvas per stage
 
@@ -53,7 +58,8 @@ export function render(kit, ctx, p) { /* paint one chapter into ctx (p.W x p.H, 
 - The road is at y = 700 with zero slope at x = 0 and x = 1000, so panels join there.
   Use `kit.sampleRoad(x, arch)` for an arched road and pass the same `arch` to `p.actor.rig({arch})`.
 - The outer 26 px are under the frame. The placard below already prints the number, date, title and caption, so do **not** draw modern title cards. Inscriptions that belong to the medium are welcome.
-- The rider crosses the panel during the chapter (`riderLocalX` 0 → 1000). It is about 230 px tall including the prop (top near y 470).
+- The rider crosses the panel during the chapter (`riderLocalX` 0 → 1000). It is about 230 px tall including the prop (top near y 470), so it sweeps the whole band y 470–700. Keep text and small key details above y ≈ 450 or to one side; a big subject can stand behind the rider as long as it still reads.
+- Do not leave the band below the road (y 700–1000) as one flat colour: texture it in the medium (hatching, dots, water, paving, a printed border). The look skeletons already do.
 - The panel is visible from `rawLocalT ≈ −chapterSec` to `+2·chapterSec`.
 
 **easel**: 1920x1080 valley behind a hilltop painter.
@@ -68,7 +74,11 @@ export function render(kit, ctx, p) { /* paint one chapter into ctx (p.W x p.H, 
 
 ## 4. Writing one scene for both stages
 
-- **Square design (default):** draw in 1000x1000 design units.
+- **Look skeleton (default):** draws on `p.W x p.H` directly. The subject goes in the focus box
+  `F` (`p.safe` on easel; `{x:80,y:80,w:840,h:600}` above the road on gallery-ride) and stands on
+  `p.groundY`; `geom(p, F)` gives a placeholder tower + wheel you replace. Backgrounds are baked
+  per stage size automatically (the bake key gets `@WxH`).
+- **Square design (`--look plain`):** draw in 1000x1000 design units.
   - `const L = kit.layout(p); ctx.translate(L.x, L.y); ctx.scale(L.s, L.s);`
   - Fill the margins with `ctx.drawImage(kit.wideBackdrop('<id>_bg_v1', bg, p, {mode}), 0, 0)` before translating. Modes:
     - `'mirror'`: textures, reliefs, registers;
@@ -96,7 +106,12 @@ export function render(kit, ctx, p) { /* paint one chapter into ctx (p.W x p.H, 
    - Latin display faces (`blackletter`, `poster`, `pixel`, `engraving` …) are for Latin text only.
    - No real brand logos or trademarks. Use generic period wording.
 5. **Leave ctx clean.** Wrap the scene in `save/restore` and reset `globalAlpha` and `globalCompositeOperation`.
+   **Never call `setTransform`/`resetTransform`**: ctx may arrive transformed (gallery thumbnails, easel push-in).
 6. **Accuracy.** Machines, tools, costumes and buildings follow the fact sheet's "Visual facts". If unsure, simplify rather than invent detail.
+7. **Thumbnails are a fixed frame.** With `p.isThumbnail`, draw a calm state that does not depend on `rawLocalT`, `p.beat.pulse()` or any other time value (the skeletons set `T = chapterSec/2`).
+8. **Negative time.** `rawLocalT` is negative while a panel slides in, and JS `%` keeps the sign: loop with `((x % n) + n) % n`, and never pass a negative radius to `arc`.
+9. **Full-frame blits** must be unscaled and at whole-pixel offsets (~0.7 ms); a scaled or sub-pixel 1920x1080 `drawImage` costs ~6 ms. `kit.gateWeave` already returns whole pixels.
+10. **Glyphs.** Any scene text works: `tools/glyphs.mjs` (run by every tool) preloads every non-ASCII character in `src/`, so fonts never load lazily mid-film. Only text assembled at runtime from outside `src/` needs `FILM.extraGlyphs`.
 
 ## 6. Quality bar (what "done" looks like)
 
@@ -123,15 +138,19 @@ export function render(kit, ctx, p) { /* paint one chapter into ctx (p.W x p.H, 
 
 ## 8. Technique cookbook
 
+The medium helpers in `src/kit/media.js` do the hard part (full table: SCENE_GUIDE.md "Medium helpers").
+
 | effect | how (cheap) |
 |---|---|
-| paper / grain / stains | bake: fill, then `kit.addGrain(g,w,h,rng,0.04)` and `kit.addBlotches(...)` |
-| glow (neon, screens) | bake a soft radial sprite once and `drawImage` it with `globalCompositeOperation='lighter'`; never per-frame blur |
-| halftone / print dots | bake a dot pattern canvas and use it as `ctx.createPattern`; misregistration means drawing the ink layer twice with a 2–3 px offset |
-| film grain / flicker / gate weave | 4–8 baked grain frames picked with `Math.floor(T*12)%n`; flicker = `0.92+0.08*kit.noise1(T*9)`; weave = translate by `noise1` × 1.5 px |
-| ink wash / watercolour | bake several low-alpha blotches with `fbm2`-jittered edges; reveal with a clip path that grows over time |
-| engraving hatching | bake parallel lines clipped to shapes (`ctx.clip()`), with line spacing set by tone |
-| pixel art | draw into a small baked canvas (e.g. 160x160) and `drawImage` it scaled with `imageSmoothingEnabled=false`; quantise time with `kit.quantizeTime(T, 8)` |
+| paper / plaster / parchment | `g.drawImage(kit.paper(id, w, h, {color, grain, blotches, foxing}), 0, 0)` inside your background bake |
+| glow (neon, screens, lamps) | `kit.glow(ctx, x, y, r, color, a)`; never per-frame `shadowBlur` |
+| halftone / print dots | `kit.halftoneShade(g, …, {tone})` at bake time; `ctx.fillStyle = kit.dots(ctx, {cell, r, color})` for flat screens; `kit.misregister(ctx, draw, {colors})` for off-register inks |
+| film grain / flicker / gate weave | `const wv = kit.gateWeave(T)`; translate the picture by it; then `kit.filmLook(ctx, p.W, p.H, T)` last |
+| CRT / terminal / HUD | draw strokes + `kit.glow`, then `kit.crt(ctx, p.W, p.H, T, {tint})` last |
+| ink wash / watercolour | `kit.wash(g, x, y, w, h, color, {shape: 'ridge'})` for ranges, default blots for bodies; `kit.inkLine` for brush outlines; reveal with a clip path that grows over time |
+| engraving hatching | clip to the shape, `kit.hatch(ctx, {spacing, angle, cross})` (denser = darker); rebuild the path before stroking the outline |
+| relief / clay / coin | `kit.emboss(ctx, pathFn, {fill, depth})` |
+| pixel art | `kit.pixelate(ctx, key, p.W, p.H, 6, g => …)`; quantise time with `kit.quantizeTime(T, 8)` |
 | wireframe / HUD | strokes only, `lineWidth` 1–2, accent colour, scrolling tick labels in `kit.FONT.mono` |
 | crowds / flocks | positions from `kit.hash11(i)`, phase from `T`, loop with modulo over `L.x0..L.x1` |
 | camera-like push | `ctx.translate/scale` by `1 + 0.03*kit.smoothstep(0, p.chapterSec, T)` |

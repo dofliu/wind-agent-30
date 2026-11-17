@@ -7,6 +7,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 import { startServer, ROOT } from './serve.mjs';
+import { syncGlyphs } from './glyphs.mjs';
 
 /**
  * Staging flags shared by every tool: --staging easel+person | --stage easel | --character person.
@@ -28,6 +29,7 @@ export function stagingArgs(argv = process.argv.slice(2)) {
 
 export async function openRenderHost({ page: pageName = 'render.html', viewport = { width: 1920, height: 1080 }, query = null } = {}) {
   if (query === null) query = stagingArgs().query;
+  syncGlyphs(ROOT); // preload every glyph scenes draw (lazy CJK font slices break determinism)
   const { server, port } = await startServer(ROOT, 0);
   const browser = await chromium.launch();
   const context = await browser.newContext({ viewport, deviceScaleFactor: 1 });

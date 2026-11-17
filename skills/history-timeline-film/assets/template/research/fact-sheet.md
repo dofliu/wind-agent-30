@@ -18,6 +18,7 @@ source URL and a "Do not claim" entry.
   - Wikipedia — Proto-cuneiform — https://en.wikipedia.org/wiki/Proto-cuneiform
 - **Do not claim:** that writing was "invented" in one city or year; that Sumer is the only origin of writing (Egypt is roughly contemporary); exact tablet counts.
 - **Hedged wording used:** 「約」for dates; 「已知最早…大多出土於」instead of 「最早的文字」.
+- **Strong words justified:** 最早 — always as 「已知最早的…」 for proto-cuneiform tablets from Uruk, as in the cited sources.
 
 ## quill · 約 6–19 世紀 · 鵝毛筆與手抄本
 
@@ -35,6 +36,7 @@ source URL and a "Do not claim" entry.
   - Wikipedia — Illuminated manuscript — https://en.wikipedia.org/wiki/Illuminated_manuscript
 - **Do not claim:** that Isidore invented the quill; that all medieval writing was done in monasteries; a precise first year of quill use.
 - **Hedged wording used:** 「已知最早的鵝毛筆記載之一」; 「約 6 世紀到 19 世紀」.
+- **Strong words justified:** 最早 — only as 「已知最早的…記載之一」 (Isidore of Seville's mention of quills), as in the cited sources.
 
 ## ballpoint · 1938 · 原子筆
 

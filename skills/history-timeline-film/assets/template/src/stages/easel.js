@@ -16,7 +16,7 @@
 //   left of x ≈ 640 below y ≈ 300, plus the hill whose crest falls from y ≈ 760 at x 600 to the
 //   bottom edge at x ≈ 1110), the top ~70 px (ruler + paper haze) and a ragged ~60–120 px
 //   paper fade on the other edges. A soft paper veil lies over the upper-left behind the painter.
-//   Safe area for the key subject: p.safe = { x: 760, y: 70, w: 1100, h: 890 }.
+//   Safe area for the key subject: p.safe = { x: 760, y: 110, w: 1000, h: 830 } (clear of the fade).
 //   Horizon guidance: p.horizonY = 430; valley-floor reference: p.groundY = 720.
 //   p.layout = { x: 840, y: 50, s: 0.9, x0, x1, y0, y1 } maps a 1000x1000 design (a
 //   gallery-ride panel) into the safe area; x0..x1 / y0..y1 = the whole canvas in design
@@ -116,7 +116,8 @@ function renderStill(ctx, chapter, localT = CHAPTER_SEC / 2, opts = {}) {
   ctx.clearRect(0, 0, SW, SH);
   ctx.drawImage(paperTexture(env.kit), 0, 0);
   env.renderChapter(env.kit, ctx, chapter, p);
-  if (opts.isThumbnail || opts.withFrame) ctx.drawImage(hazeOverlay(env.kit), 0, 0);
+  // --guides shows the real paper fade too (text under it is lost in the film)
+  if (opts.isThumbnail || opts.withFrame || opts.guides) ctx.drawImage(hazeOverlay(env.kit), 0, 0);
   if (opts.guides) drawGuides(ctx);
   return p;
 }
@@ -175,6 +176,52 @@ function makeThumb(chapter) {
   return c;
 }
 
+/**
+ * Default board-miniature crop: the band of the layout box (aspect of `base`) where the coarse
+ * picture varies most ACROSS x (a subject standing somewhere), not where it is merely textured
+ * (hatched ground, grain average out at this resolution). Runs once per chapter; deterministic.
+ */
+function autoCrop(still, base) {
+  const [bx, , bw, bh] = base;
+  const L = SCENE.layout;
+  const top = Math.max(SCENE.safe.y, L.y);
+  const bot = Math.min(SCENE.safe.y + SCENE.safe.h, L.y + 1000 * L.s);
+  const sw = 32;
+  const sh = Math.max(8, Math.round(((bot - top) / bw) * sw * 1.5));
+  const c = createCanvas(sw, sh);
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(still, bx, top, bw, bot - top, 0, 0, sw, sh);
+  let d;
+  try {
+    d = g.getImageData(0, 0, sw, sh).data;
+  } catch (e) {
+    return base;
+  }
+  const rowE = new Float64Array(sh);
+  for (let y = 0; y < sh; y++) {
+    for (const ch of [0, 1, 2]) {
+      let m = 0;
+      for (let x = 0; x < sw; x++) m += d[(y * sw + x) * 4 + ch];
+      m /= sw;
+      for (let x = 0; x < sw; x++) rowE[y] += (d[(y * sw + x) * 4 + ch] - m) ** 2;
+    }
+  }
+  const win = Math.max(1, Math.round((bh / (bot - top)) * sh));
+  let best = -1;
+  let bestY = 0;
+  for (let y = 0; y + win <= sh; y++) {
+    let e = 0;
+    for (let k = 0; k < win; k++) e += rowE[y + k];
+    if (e > best * 1.0001) {
+      best = e;
+      bestY = y;
+    }
+  }
+  const y0 = top + (bestY / sh) * (bot - top);
+  return [bx, Math.round(Math.min(bot - bh, Math.max(top, y0))), bw, bh];
+}
+
 const stills = new Map();
 /** Calm mid-chapter still of the scene canvas (cached; source of the miniature + thumbnail). */
 function stillCanvas(chapter) {
@@ -195,7 +242,7 @@ const finals = new Map();
 function chapterCard(ch) {
   if (cards.has(ch.id)) return cards.get(ch.id);
   const inks = cardInks(ch);
-  const crop = (ch.easel && ch.easel.crop) || defaultCrop(MINI);
+  const crop = (ch.easel && ch.easel.crop) || autoCrop(stillCanvas(ch), defaultCrop(MINI));
   const card = bakeCard(env.kit, {
     key: `${ch.id}_${ch.num}`,
     res: CARD_RES,

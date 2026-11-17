@@ -5,10 +5,12 @@
 //   - pooled scene canvases sized to the stage's scene canvas (W x H)
 //   - canonical road sampling for stages with a road (gallery-ride: y = 700, zero slope at edges)
 //   - fonts, the configured character (rig + draw), props and small drawing helpers
+//   - art-medium helpers from media.js (paper, halftone, hatching, wash, ink line, CRT, film, pixels)
 
 import { clamp, lerp, smoothstep, smootherstep, envelope, quantizeTime } from '../beat/timeline.js';
 import { drawProp } from './props.js';
 import { FONT } from './fonts.js';
+import { createMedia } from './media.js';
 
 // -----------------------------------------------------------------------------
 // Deterministic randomness
@@ -388,7 +390,7 @@ export function createKit(o = {}) {
     });
   }
 
-  return {
+  const api = {
     W,
     H,
     layout,
@@ -434,4 +436,8 @@ export function createKit(o = {}) {
     vignette,
     wrapText,
   };
+  // art-medium helpers (src/kit/media.js): paper, dots, halftoneShade, stipple, hatch, wash,
+  // inkLine, emboss, misregister, glow, scanlines, crt, gateWeave, filmLook, pixelate
+  Object.assign(api, createMedia(api));
+  return api;
 }
